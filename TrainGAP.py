@@ -1,4 +1,3 @@
-
 #!pip install transformers
 
 import pandas as pd
@@ -11,6 +10,7 @@ import math
 from tqdm import trange
 from tqdm import tqdm_notebook as tqdm
 from BertModels import *
+from arguments import parser
 
 def get_features_from_example(ex):
     input = ex.input.copy()
@@ -48,7 +48,7 @@ def create_dataset(df):
 
 def evaluate(val_dataset,model):
     val_sampler = SequentialSampler(val_dataset)
-    val_dataloader = DataLoader(val_dataset,batch_size= 64, sampler = val_sampler)
+    val_dataloader = DataLoader(val_dataset,batch_size= args.batch_size, sampler = val_sampler)
 
     all_labels = []
     all_preds = []
@@ -93,12 +93,12 @@ def train(train_dataset, val_dataset, model, args):
 
             #print(f'step = {step}, loss = {losses[-1]}')
 
-            loss = loss/args.gradient_acc
+            loss = loss/args.gradient_accumulation
             loss.backward()
 
             total_loss+=loss.item()
 
-            if (step+1) % args.gradient_acc == 0:
+            if (step+1) % args.gradient_accumulation == 0:
                 optimizer.step()
                 optimizer.zero_grad()
                 losses.append(total_loss)
@@ -116,22 +116,8 @@ MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
                 'segment' : BertForPronounResolution_Segment
                 }
 
-
-# args
-
-import argparse
-args = argparse.Namespace(
-    epochs = 2,
-    lr = 2E-5,
-    per_step_batch_size = 64,
-    gradient_acc = 16,
-    model_type = 'mul',
-    bert_type = 'bert-base-uncased'
-    )
-
-batch_size = args.per_step_batch_size//args.gradient_acc
-args.batch_size = batch_size
-
+args = parser.parse_args()
+args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
 
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
 device = torch.device(0)
