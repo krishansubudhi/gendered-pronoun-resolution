@@ -20,9 +20,9 @@ Steps:
 
 1. Clone the repo
 ```
-git clone https://github.com/krishansubudhi/gendered-pronoun-resolution.git`
+git clone https://github.com/krishansubudhi/gendered-pronoun-resolution.git
 ```
-2. cd into the cloned repo
+2. `cd gendered-pronoun-resolution`
 3. Download data
 
 ```
