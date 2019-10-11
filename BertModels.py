@@ -1,5 +1,6 @@
 import torch, transformers
-from transformers import BertModel, BertConfig
+from transformers import BertModel, BertConfig,BertPreTrainedModel
+import math
 
 
 # Cancat Model architecture

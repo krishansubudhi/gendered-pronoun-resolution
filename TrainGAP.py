@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader,TensorDataset, RandomSampler, SequentialSampler
 import math
 from tqdm import trange
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm as tqdm
 from BertModels import *
 from arguments import parser
 
@@ -17,7 +17,7 @@ def get_features_from_example(ex):
     pab = ex.pab_pos.copy()
 
     #add special tokens [CLS at beginning], [SEP at end], [optional SEP before pos]
-    input = [cls_id]+input.tolist()+[sep_id]
+    input = [cls_id]+tokenizer.convert_tokens_to_ids(input.tolist())+[sep_id]
     pab += 1
     
     #attention masking and padding
@@ -48,7 +48,7 @@ def create_dataset(df):
 
 def evaluate(val_dataset,model):
     val_sampler = SequentialSampler(val_dataset)
-    val_dataloader = DataLoader(val_dataset,batch_size= args.batch_size, sampler = val_sampler)
+    val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
     all_labels = []
     all_preds = []
@@ -83,7 +83,7 @@ def train(train_dataset, val_dataset, model, args):
     total_loss = 0
 
     for epoch in tqdm(range(args.epochs),position=1, total=args.epochs):
-        
+        print(f'Training epoch {epoch}')
         model.train()
         batch_iterator = tqdm(dataloader, desc='batch_iterator')
         
@@ -103,8 +103,9 @@ def train(train_dataset, val_dataset, model, args):
                 optimizer.zero_grad()
                 losses.append(total_loss)
                 batch_iterator.set_postfix({'loss':losses[-1]}, refresh=True)
-                batch_iterator.write(f'step = {step}, loss = {total_loss}')
+                #batch_iterator.write(f'step = {step}, loss = {total_loss}')
                 total_loss=0
+        print(f'Evaluating for epoch {epoch}')
         val_loss , val_acc = evaluate(val_dataset, model)
         batch_iterator.write(f'Epoch = {epoch}, Val loss = {val_loss}, val_acc = {val_acc}')
         
@@ -118,6 +119,9 @@ MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
 
 args = parser.parse_args()
 args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
+
+
+print (args)
 
 tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
 device = torch.device(0)
@@ -137,6 +141,6 @@ val_dataset = create_dataset(val_df)
 #Create model
 
 model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
-model = BertForPronounResolution_Concat.from_pretrained('bert-base-uncased')
+print(f'Model used = {type(model)}')
 model = model.to(device)
 losses = train(train_dataset, val_dataset, model, args)

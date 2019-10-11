@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-import torch
+import torch, os
 from torch.utils.data import (Dataset,DataLoader, RandomSampler, SequentialSampler,
                               TensorDataset)
-from pytorch_transformers import BertTokenizer
+from transformers import BertTokenizer
+from tqdm import trange
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
@@ -95,7 +96,7 @@ def create_features(df):
     '''
     processed_df = pd.DataFrame()
     
-    for i in range(len(df)):
+    for i in trange(len(df)):
         #print(i)
         row = df.iloc[i]
         final_tokens, token_positions = get_tokens_with_positions(row)
@@ -104,11 +105,10 @@ def create_features(df):
         assert(final_tokens[token_positions['a']] in row['A'].lower()), print(row)
         assert(final_tokens[token_positions['b']] in row['B'].lower())
         
-        ids = tokenizer.convert_tokens_to_ids(final_tokens)
         pab_position = [token_positions[key] for key in 'pab']
         label = 1 if row['A-coref'] else ( 2 if row['B-coref'] else 0)
         
-        processed_df = processed_df.append({'input':np.array(ids), 'pab_pos':np.array(pab_position), 'label':label}, ignore_index=True)
+        processed_df = processed_df.append({'input':np.array(final_tokens), 'pab_pos':np.array(pab_position), 'label':int(label)}, ignore_index=True)
     return processed_df
 
 
