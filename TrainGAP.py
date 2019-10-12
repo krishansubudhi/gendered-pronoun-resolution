@@ -40,16 +40,13 @@ def create_dataset(df):
     pabs = torch.tensor([feature[2] for feature in features])
     labels = torch.tensor([feature[3] for feature in features])
 
-    print(ids.size(), masks.size(), pabs.size(), labels.size())
+    #print(ids.size(), masks.size(), pabs.size(), labels.size())
 
     return TensorDataset(ids, masks, pabs, labels)
 
 
 
-def evaluate(val_dataset,model):
-    val_sampler = SequentialSampler(val_dataset)
-    val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
-
+def evaluate(val_dataloader,model):
     all_labels = []
     all_preds = []
     total_loss = 0
@@ -73,11 +70,7 @@ def evaluate(val_dataset,model):
     loss = total_loss/steps
     return loss,acc
 
-def train(train_dataset, val_dataset, model, args):
-    
-    optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
-    sampler = RandomSampler(train_dataset)
-    dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)
+def train(train_dataloader, val_dataloader, model, optimizer, args ):
 
     losses = []
     total_loss = 0
@@ -85,7 +78,7 @@ def train(train_dataset, val_dataset, model, args):
     for epoch in tqdm(range(args.epochs),position=1, total=args.epochs):
         print(f'Training epoch {epoch}')
         model.train()
-        batch_iterator = tqdm(dataloader, desc='batch_iterator')
+        batch_iterator = tqdm(train_dataloader, desc='batch_iterator')
         
         for step, batch in enumerate(batch_iterator):
             batch = (t.to(device) for t in batch)
@@ -106,10 +99,10 @@ def train(train_dataset, val_dataset, model, args):
                 #batch_iterator.write(f'step = {step}, loss = {total_loss}')
                 total_loss=0
         print(f'Evaluating for epoch {epoch+1}')
-        val_loss , val_acc = evaluate(val_dataset, model)
+        val_loss , val_acc = evaluate(val_dataloader, model)
         batch_iterator.write(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         
-    return losses
+    return losses, val_loss , val_acc
 
     
 MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
@@ -145,4 +138,11 @@ if type(model) is BertForPronounResolution_Segment:
     model.post_init()
 print(f'Model used = {type(model)}')
 model = model.to(device)
-losses = train(train_dataset, val_dataset, model, args)
+
+optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
+sampler = RandomSampler(train_dataset)
+dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)
+val_sampler = SequentialSampler(val_dataset)
+val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
+
+metrics = train(train_dataset, val_dataset, model, optimizer, args)
