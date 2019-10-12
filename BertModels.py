@@ -118,18 +118,18 @@ class BertForPronounResolution_Segment(BertPreTrainedModel):
     def __init__(self, config):
         super(BertForPronounResolution_Segment, self).__init__(config)
         self.bert = BertModel(config)
-        self.config.type_vocab_size = 4
         
         self.classification = torch.nn.Linear(config.hidden_size , 3)
-        self.token_type_embeddings = torch.nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.config.type_vocab_size = 4
+
+        self.token_type_embeddings = torch.nn.Embedding(self.config.type_vocab_size, config.hidden_size)
         
         self.init_weights()
         
 
     def post_init(self):
-        #print(self.bert.embeddings.token_type_embeddings.weight)
+        self.token_type_embeddings.weight.data[0] = self.bert.embeddings.token_type_embeddings.weight.data[0] #initializing the first onewith trained embeddings.
         self.bert.embeddings.token_type_embeddings = self.token_type_embeddings
-        #print(self.bert.embeddings.token_type_embeddings.weight)
 
     def get_token_type_ids(self,inp,p):
         tokentypes = torch.zeros_like(inp)
@@ -163,8 +163,11 @@ class BertForPronounResolution_Segment(BertPreTrainedModel):
         return output
 
 # m = BertForPronounResolution_Segment.from_pretrained('bert-base-uncased')
+# print(m.bert.embeddings.token_type_embeddings.weight)
 # m.post_init()
+# print(m.bert.embeddings.token_type_embeddings.weight)
         
 # a = torch.randint(high = 100,size = (2,5))
-# pab = torch.randint(low = 1, high = 5, size = (2,3))
-# m(a,None,pab)
+# pab = torch.IntTensor([[3,1,4],[3,1,2]])
+# print(a,pab)
+# print(m(a,None,pab))
