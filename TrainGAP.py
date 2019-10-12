@@ -105,9 +105,9 @@ def train(train_dataset, val_dataset, model, args):
                 batch_iterator.set_postfix({'loss':losses[-1]}, refresh=True)
                 #batch_iterator.write(f'step = {step}, loss = {total_loss}')
                 total_loss=0
-        print(f'Evaluating for epoch {epoch}')
+        print(f'Evaluating for epoch {epoch+1}')
         val_loss , val_acc = evaluate(val_dataset, model)
-        batch_iterator.write(f'Epoch = {epoch}, Val loss = {val_loss}, val_acc = {val_acc}')
+        batch_iterator.write(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         
     return losses
 
