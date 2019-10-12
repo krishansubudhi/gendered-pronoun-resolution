@@ -141,6 +141,8 @@ val_dataset = create_dataset(val_df)
 #Create model
 
 model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
+if type(model) is BertForPronounResolution_Segment:
+    model.post_init()
 print(f'Model used = {type(model)}')
 model = model.to(device)
 losses = train(train_dataset, val_dataset, model, args)

@@ -162,12 +162,14 @@ class BertForPronounResolution_Segment(BertPreTrainedModel):
             
         return output
 
+
 # m = BertForPronounResolution_Segment.from_pretrained('bert-base-uncased')
-# print(m.bert.embeddings.token_type_embeddings.weight)
 # m.post_init()
-# print(m.bert.embeddings.token_type_embeddings.weight)
-        
-# a = torch.randint(high = 100,size = (2,5))
-# pab = torch.IntTensor([[3,1,4],[3,1,2]])
-# print(a,pab)
-# print(m(a,None,pab))
+# input = torch.randint(0,10000,size = (2,10))
+# mask = torch.ones_like(input)
+# token_type_ids = torch.randint_like(input,0,4)
+
+# pab = torch.randint(0,input.size()[1], size = (2,3))
+# print(input,mask,token_type_ids,pab)
+# output = m(input,mask,pab, token_type_ids = token_type_ids)
+# print(output)
