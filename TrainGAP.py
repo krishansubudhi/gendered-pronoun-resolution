@@ -12,7 +12,11 @@ from tqdm import tqdm as tqdm
 from BertModels import *
 from arguments import parser
 
-def get_features_from_example(ex):
+def get_features_from_example(ex, tokenizer):
+    cls_id = tokenizer.convert_tokens_to_ids(tokenizer._cls_token)
+    sep_id = tokenizer.convert_tokens_to_ids(tokenizer._sep_token)
+    max_length = 512
+
     input = ex.input.copy()
     pab = ex.pab_pos.copy()
 
@@ -33,7 +37,8 @@ def get_features_from_example(ex):
     return input, mask, pab, int(ex.label)
 
 def create_dataset(df):
-    features = [get_features_from_example(df.iloc[i]) for i in range(len(df))]
+    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
+    features = [get_features_from_example(df.iloc[i],tokenizer) for i in range(len(df))]
 
     ids = torch.tensor([feature[0] for feature in features])
     masks = torch.tensor([feature[1] for feature in features])
@@ -56,7 +61,7 @@ def evaluate(val_dataloader,model):
     with torch.no_grad():
         for batch in tqdm(val_dataloader):
             labels = batch[-1]
-            batch = tuple(t.to(device) for t in batch)
+            batch = tuple(t.to(args.device) for t in batch)
             loss,logits = model(*batch)
             preds = torch.argmax(logits, dim = 1)
 
@@ -81,7 +86,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
         batch_iterator = tqdm(train_dataloader, desc='batch_iterator')
         
         for step, batch in enumerate(batch_iterator):
-            batch = (t.to(device) for t in batch)
+            batch = (t.to(args.device) for t in batch)
             loss,logits = model(*batch)
 
             #print(f'step = {step}, loss = {losses[-1]}')
@@ -110,39 +115,49 @@ MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
                 'segment' : BertForPronounResolution_Segment
                 }
 
-args = parser.parse_args()
-args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
+def main(args):
+    
+    device = torch.device(0 if torch.cuda.is_available() else 'cpu')
+    args.device = device
 
+    # Create datasets
 
-print (args)
+    train_df =  pd.read_pickle('train_processed.pkl')
+    val_df =  pd.read_pickle('val_processed.pkl')
 
-tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
-device = torch.device(0)
+    train_dataset = create_dataset(train_df)
+    val_dataset = create_dataset(val_df)
 
-cls_id = tokenizer.convert_tokens_to_ids(tokenizer._cls_token)
-sep_id = tokenizer.convert_tokens_to_ids(tokenizer._sep_token)
-max_length = 512
+    #Create model
 
-# Create datasets
+    model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
+    if type(model) is BertForPronounResolution_Segment:
+        model.post_init()
+    print(f'Model used = {type(model)}')
+    model = model.to(device)
 
-train_df =  pd.read_pickle('train_processed.pkl')
-val_df =  pd.read_pickle('val_processed.pkl')
+    optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
+    sampler = RandomSampler(train_dataset)
+    train_dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)
 
-train_dataset = create_dataset(train_df)
-val_dataset = create_dataset(val_df)
+    val_sampler = SequentialSampler(val_dataset)
+    val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
-#Create model
+    metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
 
-model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
-if type(model) is BertForPronounResolution_Segment:
-    model.post_init()
-print(f'Model used = {type(model)}')
-model = model.to(device)
+if __name__ == '__main__':
+    args = parser.parse_args()
+    args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
+    print (args)
 
-optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
-sampler = RandomSampler(train_dataset)
-dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)
-val_sampler = SequentialSampler(val_dataset)
-val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
-
-metrics = train(train_dataset, val_dataset, model, optimizer, args)
+    print('Starting single GPU/CPU training')
+    
+    #if args.is_distributed:
+        # For distributed training using DDP, there are 3 types of init methods.
+        # 1. pass ranks, master node address and world size explicitly
+        # 2. Do mp.spawn with start rank and end rank.
+        # 3. torch.distributed.launch which automatically sets some variables.
+        # https://github.com/huggingface/transformers/blob/a701c9b32126f1e6974d9fcb3a5c3700527d8559/transformers/modeling_bert.py#L177
+        # https://github.com/pytorch/fairseq/blob/d80ad54f75186adf9b597ef0bcef005c98381b9e/fairseq/distributed_utils.py#L71
+    #else
+    main(args)
