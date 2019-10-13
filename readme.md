@@ -5,7 +5,7 @@ The pytorch based solution utilizes BERT architecture to create a finetuned mode
 
 Training and validation data: https://github.com/google-research-datasets/gap-coreference.git
 
-Goals:
+# Goals
 
 1. ~Create a working solution with good accuracy.~
 2. ~Compare different approaches.~
@@ -14,7 +14,7 @@ Goals:
 5. Use azure ML to train. 
 6. Use hyperdrive.
 
-Steps:
+# Steps
 
 1. Boot a machine with at least one GPU
 
@@ -80,3 +80,34 @@ logits = linear(CLS_hidden)
 Epoch = 1, Val loss = 0.8980, val_acc = 0.596   
 
 This performs the worst among the three. Probable casue can be the addition of many untrained weights at the beginning of the pretrained model. Or segment ids are not useful at all. It needs further debugging.
+
+
+#  Distributed training
+
+There are multiple ways to do distributed traing. For example pytorch DP, DDP and horovod are different libraries. Then there is nccl and gloo backends. Also there are multiple ways to start multi process training. We will discuss all of them and cgive a comparison of all.
+
+For all the setting, these are the constants.
+
+Total batch size for 1 optimizer step = 32
+epochs = 1
+learning ratee = 2E-5
+
+**Single node performance**
+
+Training loss |Time taken for epoch 1 |Val loss, val_acc |
+ --- | --- | --- |
+ 0.28 | 290 s|0.1776, 0.9495 |
+
+
+## 1. Manually starting multiple process
+Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed data parallel training using 2 processes. Needs a VM with 2 GPUS.
+
+### Performance with single node 2 processes
+|Backend|Training loss |Time taken for epoch 1 |Val loss, val_acc |
+|--- | --- | --- | --- |
+|GLOO| 0.441, 0.301 | 218 s|0.158, 0.9495 |
+|NCCL| 0.549, 0.212 | 179 s |0.183, 0.945 |
+
+Conclusion: NCCL is faster then GLOO. NCCL with two processes only took 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
+
+### Performance with multi node 2 processes
