@@ -5,12 +5,23 @@ import numpy as np
 import transformers
 from transformers import BertPreTrainedModel, BertTokenizer, BertModel, BertConfig
 import torch
-from torch.utils.data import DataLoader,TensorDataset, RandomSampler, SequentialSampler
+from torch.utils.data import DataLoader,TensorDataset, RandomSampler, SequentialSampler, DistributedSampler
 import math
 from tqdm import trange
 from tqdm import tqdm as tqdm
 from BertModels import *
 from arguments import parser
+import torch.distributed as dist
+
+import sys,logging
+import os,time
+
+logging.root.handlers = []
+logging.basicConfig(level="INFO", 
+                    format = '%(asctime)s:%(levelname)s: %(message)s' ,
+                    stream = sys.stdout)
+logger = logging.getLogger(__name__)
+logger.info('hello')
 
 def get_features_from_example(ex, tokenizer):
     cls_id = tokenizer.convert_tokens_to_ids(tokenizer._cls_token)
@@ -45,7 +56,7 @@ def create_dataset(df):
     pabs = torch.tensor([feature[2] for feature in features])
     labels = torch.tensor([feature[3] for feature in features])
 
-    #print(ids.size(), masks.size(), pabs.size(), labels.size())
+    #logger.info(ids.size(), masks.size(), pabs.size(), labels.size())
 
     return TensorDataset(ids, masks, pabs, labels)
 
@@ -79,9 +90,10 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
 
     losses = []
     total_loss = 0
-
-    for epoch in tqdm(range(args.epochs),position=1, total=args.epochs):
-        print(f'Training epoch {epoch}')
+    
+    for epoch in range(args.epochs):
+        start = time.time()
+        logger.info(f'Training epoch {epoch}')
         model.train()
         batch_iterator = tqdm(train_dataloader, desc='batch_iterator')
         
@@ -89,7 +101,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             batch = (t.to(args.device) for t in batch)
             loss,logits = model(*batch)
 
-            #print(f'step = {step}, loss = {losses[-1]}')
+            #logger.info(f'step = {step}, loss = {losses[-1]}')
 
             loss = loss/args.gradient_accumulation
             loss.backward()
@@ -103,9 +115,10 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
                 batch_iterator.set_postfix({'loss':losses[-1]}, refresh=True)
                 #batch_iterator.write(f'step = {step}, loss = {total_loss}')
                 total_loss=0
-        print(f'Evaluating for epoch {epoch+1}')
+        end = time.time()
+        logger.info(f'Time taken for epoch {epoch+1} is = {end-start}')
         val_loss , val_acc = evaluate(val_dataloader, model)
-        batch_iterator.write(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
+        logger.info(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         
     return losses, val_loss , val_acc
 
@@ -115,11 +128,8 @@ MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
                 'segment' : BertForPronounResolution_Segment
                 }
 
-def main(args):
+def initialize(args):
     
-    device = torch.device(0 if torch.cuda.is_available() else 'cpu')
-    args.device = device
-
     # Create datasets
 
     train_df =  pd.read_pickle('train_processed.pkl')
@@ -133,10 +143,21 @@ def main(args):
     model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
     if type(model) is BertForPronounResolution_Segment:
         model.post_init()
-    print(f'Model used = {type(model)}')
-    model = model.to(device)
+    
+    logger.info(f'Model used = {type(model)}')
+    model = model.to(args.device)
 
     optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
+
+    return model, optimizer, train_dataset, val_dataset
+
+def main(args):
+    logger.info('Starting single GPU/CPU training')   
+    device = torch.device(0 if torch.cuda.is_available() else 'cpu')
+    args.device = device
+
+    model, optimizer, train_dataset, val_dataset = initialize(args)
+    
     sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)
 
@@ -145,19 +166,67 @@ def main(args):
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
 
+
+def distributed_main(args):
+    '''
+    Similar to main but sets the mode and data loader for distributed programming.
+    '''
+    logger.info (args)
+
+    ddp_setup(args)
+
+    args.device = torch.device(args.local_rank) # <--
+    logger.info(f'device = {args.device}')  
+    
+    model, optimizer, train_dataset, val_dataset = initialize(args)
+
+    #Understand more about find_unused_parameters later. This is required.
+    model = torch.nn.parallel.DistributedDataParallel(model, 
+                                                        device_ids=[args.device],
+                                                        output_device=args.device,
+                                                        find_unused_parameters = True) # <--
+
+    sampler = DistributedSampler(train_dataset, num_replicas = args.world_size)
+
+    train_dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)# <--
+
+    val_sampler = SequentialSampler(val_dataset)
+    val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
+
+    metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
+
+def ddp_setup(args):
+    #required = ['backend', 'local_rank', 'global_rank', 'world_size', 'master_node','master_port']
+    dist.init_process_group(backend  = args.backend,
+                        rank = args.global_rank,
+                        world_size = args.world_size,
+                        init_method=f'tcp://{args.master_node}:{args.master_port}') 
+                        #see if it can be set to something like env:// for local machines
+    torch.manual_seed(42) #otherwise model initialization will not be uniform. Not tested 
+
+def run_distributed(args):
+    '''
+    Check if distributed variables are set properly. If not start a multiprocess module. 
+    Else set the variables in args and call distributed_main()
+    '''
+    #explicit ranks
+    if args.local_rank > -1:
+        distributed_main(args)
+    pass
+
 if __name__ == '__main__':
     args = parser.parse_args()
     args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
-    print (args)
+    logger.info (args)
 
-    print('Starting single GPU/CPU training')
     
-    #if args.is_distributed:
+    if args.is_distributed:
         # For distributed training using DDP, there are 3 types of init methods.
         # 1. pass ranks, master node address and world size explicitly
         # 2. Do mp.spawn with start rank and end rank.
         # 3. torch.distributed.launch which automatically sets some variables.
         # https://github.com/huggingface/transformers/blob/a701c9b32126f1e6974d9fcb3a5c3700527d8559/transformers/modeling_bert.py#L177
         # https://github.com/pytorch/fairseq/blob/d80ad54f75186adf9b597ef0bcef005c98381b9e/fairseq/distributed_utils.py#L71
-    #else
-    main(args)
+        run_distributed(args)
+    else:
+        main(args)
