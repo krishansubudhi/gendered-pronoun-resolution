@@ -12,6 +12,7 @@ from tqdm import tqdm as tqdm
 from BertModels import *
 from arguments import parser
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 import sys,logging
 import os,time
@@ -62,7 +63,7 @@ def create_dataset(df):
 
 
 
-def evaluate(val_dataloader,model):
+def evaluate(val_dataloader,model, args):
     all_labels = []
     all_preds = []
     total_loss = 0
@@ -117,7 +118,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
                 total_loss=0
         end = time.time()
         logger.info(f'Time taken for epoch {epoch+1} is = {end-start}')
-        val_loss , val_acc = evaluate(val_dataloader, model)
+        val_loss , val_acc = evaluate(val_dataloader, model, args)
         logger.info(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         
     return losses, val_loss , val_acc
@@ -171,6 +172,14 @@ def distributed_main(args):
     '''
     Similar to main but sets the mode and data loader for distributed programming.
     '''
+    global logger 
+    logging.root.handlers = []
+    logging.basicConfig(level="INFO", 
+                    format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(args.local_rank) ,
+                    stream = sys.stdout)
+    logger = logging.getLogger(__name__)
+
+
     logger.info (args)
 
     ddp_setup(args)
@@ -204,15 +213,28 @@ def ddp_setup(args):
                         #see if it can be set to something like env:// for local machines
     torch.manual_seed(42) #otherwise model initialization will not be uniform. Not tested 
 
+
 def run_distributed(args):
     '''
     Check if distributed variables are set properly. If not start a multiprocess module. 
-    Else set the variables in args and call distributed_main()
+    Else set the variables in args and call distributed_main(). 
+    local_rank, global_rank, world_size, master_node, master_port
     '''
-    #explicit ranks
     if args.local_rank > -1:
+        #explicit ranks set
         distributed_main(args)
-    pass
+    else:
+        #spawn processes
+        #https://pytorch.org/docs/stable/distributed.html#launch-utility
+        #https://github.com/pytorch/examples/blob/master/imagenet/main.py
+        mp.spawn(spawn_fn, nprocs=args.nprocs, args = (args,)) #spawn also sends the local_rank as first argument
+
+def spawn_fn(local_rank, args):
+    logger.info(f'inside spawn method . Rank = {local_rank}')
+    args.local_rank = local_rank
+    args.global_rank = args.start_rank + local_rank
+    distributed_main(args)
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
