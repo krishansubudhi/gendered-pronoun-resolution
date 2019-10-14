@@ -121,7 +121,7 @@ if __name__ == '__main__':
     test_file = 'gap-coreference/gap-test.tsv'
 
     train_df = pd.read_csv(train_file,sep = '\t')
-    val_df = pd.read_csv(train_file,sep = '\t')
+    val_df = pd.read_csv(val_file,sep = '\t')
 
     print('Processing validation data')
     processed_df = create_features(val_df)

@@ -206,6 +206,7 @@ def distributed_main(args):
 
 def ddp_setup(args):
     #required = ['backend', 'local_rank', 'global_rank', 'world_size', 'master_node','master_port']
+    logger.info('Setting up DDP') 
     dist.init_process_group(backend  = args.backend,
                         rank = args.global_rank,
                         world_size = args.world_size,
