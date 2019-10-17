@@ -98,11 +98,12 @@ torch.cuda.get_device_name(0)
 Performance is a bit slow in the K80 GPUs. Will benchmark in V100s after AzureML integration.
 
 ## Single node single process performance
+K80 GPU
 
-Training loss |Time taken for epoch 1 |Val loss, val_acc |
- --- | --- | --- |
- 0.243 | 389 s|0.3918, 0.8546 |
-
+GPU | Training loss |Time taken for epoch 1 |Val loss, val_acc |
+--- | --- | --- | --- |
+K80 | 0.243 | 389 s|0.3918, 0.8546 |
+V100 | 0.28 | 290 s| - |
 
 ## Starting multiple process
 Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed data parallel training using 2 processes. Needs a VM with 2 GPUS.
@@ -110,18 +111,30 @@ Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed dat
 Also the notebook mp_spawn shows easier way to start multiple processes in one command using pytorch multiprocess spawn method.
 
 ### Performance with single node 2 processes
+K80 GPUS
+|--- | --- | --- | --- |
+|GLOO| 0.409, | 256 s|0.449, 0.8458 |
+|NCCL| 0.409, | 212 s |0.449, 0.8458 |
+
+V100 GPUS
 |Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
-|GLOO| 0.441, 0.301 | 218 s|0.158, 0.9495 |
-|NCCL| 0.549, 0.212 | 179 s |0.183, 0.945 |
+|GLOO| 0.441, 0.301 | 218 s| - |
+|NCCL| 0.549, 0.212 | 179 s | - |
 
-Conclusion: NCCL is faster then GLOO. NCCL with two processes only took 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
+Conclusion: Multiprocess traning is faster than single process training. NCCL is faster then GLOO. In V100s, NCCL with two processes only consumed 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
 
 Hence rest of the experiments will be done with NCCL backend only.
 
 ### Performance with multi node 
 
+For multi node training I booted two azure VMs in same location and resource group. I opened port 29500 in the VM I was going to use for rank 0. More details on this [blog](https://krishansubudhi.github.io/deeplearning/2019/10/15/PyTorch-Distributed.html)
+
+K80
+
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |2 nodes, 2 processes| 0.4, 0.34 | 338 s |0.449, 0.8458 |
-|2 nodes, 4 processes|  |  | |
+|2 nodes, 4 processes| 0.472, 0.477, 0.454, | 255 s | 0.538, 0.801 |
+
+With more processes per node the speed is faster but the performance has degraded. This needs further analysis.
