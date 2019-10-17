@@ -98,7 +98,7 @@ torch.cuda.get_device_name(0)
 Performance is a bit slow in the K80 GPUs. Will benchmark in V100s after AzureML integration.
 
 ## Single node single process performance
-K80 GPU
+
 
 GPU | Training loss |Time taken for epoch 1 |Val loss, val_acc |
 --- | --- | --- | --- |
@@ -111,12 +111,16 @@ Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed dat
 Also the notebook mp_spawn shows easier way to start multiple processes in one command using pytorch multiprocess spawn method.
 
 ### Performance with single node 2 processes
+
 K80 GPUS
+
+|Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |GLOO| 0.409, | 256 s|0.449, 0.8458 |
 |NCCL| 0.409, | 212 s |0.449, 0.8458 |
 
 V100 GPUS
+
 |Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |GLOO| 0.441, 0.301 | 218 s| - |
