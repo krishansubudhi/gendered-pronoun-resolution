@@ -63,7 +63,7 @@ Neither_att = Attention of P wrt random tranable tensor/sqrt(hiddensize)
 logits = A_att, B_att, Neither_att
 
 **Results**
-Epoch = 1, Val loss = 0.16755544440820813, val_acc = 0.9535 
+Epoch = 1, Val loss = 0.3918, val_acc = 0.8546
 
 This method produces the best results so far. And this will be our baseline. 
 Further hyper parameter tuning will be done on top of this architecture.
@@ -77,7 +77,7 @@ A,B and P are only first tokens of their respective words
 logits = linear(CLS_hidden)
 
 **Results**
-Epoch = 1, Val loss = 0.8980, val_acc = 0.596   
+Epoch = 1, Val loss = 1.003, val_acc = 0.5176
 
 This performs the worst among the three. Probable casue can be the addition of many untrained weights at the beginning of the pretrained model. Or segment ids are not useful at all. It needs further debugging.
 
@@ -91,23 +91,37 @@ For all the setting, these are the constants.
 Total batch size for 1 optimizer step = 32
 epochs = 1
 learning ratee = 2E-5
+Machine used = Azure NC12_promo
+torch.cuda.get_device_name(0)
+'Tesla K80'
 
-**Single node performance**
+Performance is a bit slow in the K80 GPUs. Will benchmark in V100s after AzureML integration.
+
+## Single node single process performance
 
 Training loss |Time taken for epoch 1 |Val loss, val_acc |
  --- | --- | --- |
- 0.28 | 290 s|0.1776, 0.9495 |
+ 0.243 | 389 s|0.3918, 0.8546 |
 
 
-## 1. Manually starting multiple process
+## Starting multiple process
 Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed data parallel training using 2 processes. Needs a VM with 2 GPUS.
 
+Also the notebook mp_spawn shows easier way to start multiple processes in one command using pytorch multiprocess spawn method.
+
 ### Performance with single node 2 processes
-|Backend|Training loss |Time taken for epoch 1 |Val loss, val_acc |
+|Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |GLOO| 0.441, 0.301 | 218 s|0.158, 0.9495 |
 |NCCL| 0.549, 0.212 | 179 s |0.183, 0.945 |
 
 Conclusion: NCCL is faster then GLOO. NCCL with two processes only took 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
 
-### Performance with multi node 2 processes
+Hence rest of the experiments will be done with NCCL backend only.
+
+### Performance with multi node 
+
+|Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
+|--- | --- | --- | --- |
+|2 nodes, 2 processes| 0.4, 0.34 | 338 s |0.449, 0.8458 |
+|2 nodes, 4 processes|  |  | |
