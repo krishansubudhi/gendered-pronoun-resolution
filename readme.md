@@ -144,3 +144,7 @@ K80
 2 nodes 2 process decreased the speed while 2 nodes 4 process improved the speed. The intuition is with more number of processes, the communicaiton time is constant but the parallelisation improved. But this needs more analysis.
 
 Previously with 4 processes my the performance has degraded. The reson was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
+
+**Instructions to run multinode tranining:**
+
+https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md
