@@ -138,7 +138,9 @@ K80
 
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
-|2 nodes, 2 processes| 0.4, 0.34 | 338 s |0.449, 0.8458 |
-|2 nodes, 4 processes| 0.472, 0.477, 0.454, | 255 s | 0.538, 0.801 |
+|2 nodes, 2 processes| 0.43, 0.267 | 333 s |0.416, 0.841 |
+|2 nodes, 4 processes| 0.434, 0.16, 0.091, 0.764 | 204 s | 0.419, 0.8458 |
 
-With more processes per node the speed is faster but the performance has degraded. This needs further analysis.
+2 nodes 2 process decreased the speed while 2 nodes 4 process improved the speed. The intuition is with more number of processes, the communicaiton time is constant but the parallelisation improved. But this needs more analysis.
+
+Previously with 4 processes my the performance has degraded. The reson was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
