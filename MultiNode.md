@@ -2,10 +2,10 @@
 # 2 nodes 2 processes
 
 ### Node 1
-Not working Yet
 
 
-```python
+```
+
 !python TrainGAP.py \
 --is_distributed \
 --local_rank 0 \
@@ -16,12 +16,13 @@ Not working Yet
 --backend nccl \
 --per_gpu_batch_size 16 \
 --gradient_accumulation 4
+    
 ```
 
 ### Node 2
 
 
-```python
+```
 # !python TrainGAP.py \
 # --is_distributed \
 # --local_rank 0 \
@@ -54,7 +55,7 @@ Not working Yet
 ### Node 1
 
 
-```python
+```
 !python TrainGAP.py \
         --is_distributed \
         --world_size 4 \
@@ -70,7 +71,7 @@ Not working Yet
 ### Node 2
 
 
-```python
+```
 # !python TrainGAP.py \
 #         --is_distributed \
 #         --world_size 4 \
@@ -84,11 +85,14 @@ Not working Yet
 ```
 
 ## Using torch.distributed.launch
+More details here:
+    
+https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
 
 ### Node 1
 
 
-```python
+```
 !python -m torch.distributed.launch \
     --nproc_per_node=2 \
     --nnodes=2 \
@@ -105,7 +109,7 @@ Not working Yet
 ### Node 2
 
 
-```python
+```
 # !python -m torch.distributed.launch \
 #     --nproc_per_node=2 \
 #     --nnodes=2 \
