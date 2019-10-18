@@ -29,5 +29,5 @@ parser.add_argument('--nprocs', default = 1, type = int, help = 'Number of proce
 parser.add_argument('--start_rank', default = 0, type = int, help = 'starting rank for this node')
 
 #Explicit
-parser.add_argument('--local_rank', default = -1, type = int)
+parser.add_argument('--local_rank', default = -1, type = int) #also passed in torch.distrib.launch
 parser.add_argument('--global_rank', default = None, type = int)

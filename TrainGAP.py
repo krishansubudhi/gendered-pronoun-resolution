@@ -16,6 +16,7 @@ import torch.multiprocessing as mp
 
 import sys,logging
 import os,time
+import dist_util
 
 logging.root.handlers = []
 logging.basicConfig(level="INFO", 
@@ -178,11 +179,9 @@ def distributed_main(args):
                     format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(args.local_rank) ,
                     stream = sys.stdout)
     logger = logging.getLogger(__name__)
-
-
     logger.info (args)
 
-    ddp_setup(args)
+    dist_util.ddp_setup(args)
 
     args.device = torch.device(args.local_rank) # <--
     logger.info(f'device = {args.device}')  
@@ -204,39 +203,6 @@ def distributed_main(args):
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
 
-def ddp_setup(args):
-    #required = ['backend', 'local_rank', 'global_rank', 'world_size', 'master_node','master_port']
-    logger.info('Setting up DDP') 
-    dist.init_process_group(backend  = args.backend,
-                        rank = args.global_rank,
-                        world_size = args.world_size,
-                        init_method=f'tcp://{args.master_node}:{args.master_port}') 
-                        #see if it can be set to something like env:// for local machines
-    torch.manual_seed(42) #otherwise model initialization will not be uniform. Not tested 
-
-
-def run_distributed(args):
-    '''
-    Check if distributed variables are set properly. If not start a multiprocess module. 
-    Else set the variables in args and call distributed_main(). 
-    local_rank, global_rank, world_size, master_node, master_port
-    '''
-    if args.local_rank > -1:
-        #explicit ranks set
-        distributed_main(args)
-    else:
-        #spawn processes
-        #https://pytorch.org/docs/stable/distributed.html#launch-utility
-        #https://github.com/pytorch/examples/blob/master/imagenet/main.py
-        mp.spawn(spawn_fn, nprocs=args.nprocs, args = (args,)) #spawn also sends the local_rank as first argument
-
-def spawn_fn(local_rank, args):
-    logger.info(f'inside spawn method . Rank = {local_rank}')
-    args.local_rank = local_rank
-    args.global_rank = args.start_rank + local_rank
-    distributed_main(args)
-
-
 if __name__ == '__main__':
     args = parser.parse_args()
     args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
@@ -244,12 +210,6 @@ if __name__ == '__main__':
 
     
     if args.is_distributed:
-        # For distributed training using DDP, there are 3 types of init methods.
-        # 1. pass ranks, master node address and world size explicitly
-        # 2. Do mp.spawn with start rank and end rank.
-        # 3. torch.distributed.launch which automatically sets some variables.
-        # https://github.com/huggingface/transformers/blob/a701c9b32126f1e6974d9fcb3a5c3700527d8559/transformers/modeling_bert.py#L177
-        # https://github.com/pytorch/fairseq/blob/d80ad54f75186adf9b597ef0bcef005c98381b9e/fairseq/distributed_utils.py#L71
-        run_distributed(args)
+        dist_util.run_distributed(distributed_main, args)
     else:
         main(args)
