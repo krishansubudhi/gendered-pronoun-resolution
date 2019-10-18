@@ -4,7 +4,14 @@
 # 3. torch.distributed.launch which automatically sets env variables.
 # https://github.com/huggingface/transformers/blob/a701c9b32126f1e6974d9fcb3a5c3700527d8559/transformers/modeling_bert.py#L177
 # https://github.com/pytorch/fairseq/blob/d80ad54f75186adf9b597ef0bcef005c98381b9e/fairseq/distributed_utils.py#L71
+import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 
+import sys,logging
+import os,time
+
+logger = logging.getLogger(__name__)
 
 def run_distributed(distributed_main, args):
     '''
@@ -28,16 +35,18 @@ def run_distributed(distributed_main, args):
 
 def update_args_from_env(args):
     #https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
-    logger.info(f'Updating args from environment variable. Rank = {local_rank}')
+    logger.info(f'Updating args from environment variable. Rank = {args.local_rank}')
     current_env = os.environ
-    args.global_rank = current_env["RANK"]
+    
+    print ('Current environment = ',current_env)
+    
+    args.global_rank = int(current_env["RANK"])
     args.master_node = current_env["MASTER_ADDR"]
-    args.master_port =current_env["MASTER_PORT"]
-    args.world_size = current_env["WORLD_SIZE"]
+    args.master_port = int(current_env["MASTER_PORT"])
+    args.world_size = int(current_env["WORLD_SIZE"])
 
-def spawn_fn(local_rank, arguments):
+def spawn_fn(local_rank, distributed_main, args):
     logger.info(f'inside spawn method . Rank = {local_rank}')
-    distributed_main, args = arguments
     args.local_rank = local_rank
     args.global_rank = args.start_rank + local_rank
     distributed_main(args)
