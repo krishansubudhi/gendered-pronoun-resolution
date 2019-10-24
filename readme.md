@@ -147,4 +147,7 @@ Previously with 4 processes my the performance has degraded. The reson was I was
 
 **Instructions to run multinode tranining:**
 
-https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md
+[Pytorch DDP](https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md)
+
+
+[Using Horovod](Horovod.md)
