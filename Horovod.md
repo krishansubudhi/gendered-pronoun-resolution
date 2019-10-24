@@ -8,6 +8,10 @@
 
 [Analyze all reduce performance](https://github.com/horovod/horovod/blob/master/docs/timeline.rst)
 
+[Install openMPI, NCCL and Horovod](https://github.com/horovod/horovod/blob/master/docs/gpus.rst)
+
+[Pytorch Tutorial](https://github.com/horovod/horovod/blob/master/docs/pytorch.rst)
+
 
 One of the unique things about Horovod is its ability to interleave communication and computation coupled with the ability to batch small allreduce operations, which results in improved performance. We call this batching feature [Tensor Fusion](https://github.com/horovod/horovod/blob/master/docs/tensor-fusion.rst).
 
