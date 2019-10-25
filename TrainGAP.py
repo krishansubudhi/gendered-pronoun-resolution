@@ -153,10 +153,21 @@ def initialize(args):
 
     return model, optimizer, train_dataset, val_dataset
 
+def init_logger(local_rank):
+    global logger 
+    logging.root.handlers = []
+    logging.basicConfig(level="INFO", 
+                    format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(local_rank) ,
+                    stream = sys.stdout)
+    logger = logging.getLogger(__name__)
+
 def main(args):
     logger.info('Starting single GPU/CPU training')   
     device = torch.device(0 if torch.cuda.is_available() else 'cpu')
     args.device = device
+    
+    
+    logger.info (args)
 
     model, optimizer, train_dataset, val_dataset = initialize(args)
     
@@ -173,18 +184,14 @@ def distributed_main(args):
     '''
     Similar to main but sets the mode and data loader for distributed programming.
     '''
-    global logger 
-    logging.root.handlers = []
-    logging.basicConfig(level="INFO", 
-                    format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(args.local_rank) ,
-                    stream = sys.stdout)
-    logger = logging.getLogger(__name__)
+
+
+    args.device = torch.device(args.local_rank) # <--
+    init_logger(args.local_rank)
+    
     logger.info (args)
 
     dist_util.ddp_setup(args)
-
-    args.device = torch.device(args.local_rank) # <--
-    logger.info(f'device = {args.device}')  
     
     model, optimizer, train_dataset, val_dataset = initialize(args)
 
@@ -203,13 +210,37 @@ def distributed_main(args):
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
 
+def distributed_main_horovod(args):
+    import horovod.torch as hvd
+    hvd.init()
+    
+    print('hvd.local_rank()',hvd.local_rank())
+    args.device = torch.device(hvd.local_rank())# <--
+    init_logger(hvd.local_rank())
+    
+    logger.info('Using horovod for distributed training')
+
+    model, optimizer, train_dataset, val_dataset = initialize(args)
+    # Broadcast parameters from rank 0 to all other processes.
+    hvd.broadcast_parameters(model.state_dict(), root_rank=0)
+
+    sampler = DistributedSampler(train_dataset, num_replicas=hvd.size(), rank=hvd.rank())
+
+    train_dataloader = DataLoader(train_dataset,batch_size= args.batch_size, sampler = sampler)# <--
+    
+    val_sampler = SequentialSampler(val_dataset)
+    val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
+
+    optimizer = hvd.DistributedOptimizer(optimizer, named_parameters = model.named_parameters(), backward_passes_per_step = args.gradient_accumulation)# <--
+    
+    metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
+
 if __name__ == '__main__':
     args = parser.parse_args()
     args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
     logger.info (args)
 
-    
     if args.is_distributed:
-        dist_util.run_distributed(distributed_main, args)
+        dist_util.run_distributed(args)
     else:
         main(args)

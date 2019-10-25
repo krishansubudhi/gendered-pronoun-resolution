@@ -10,16 +10,20 @@ import torch.multiprocessing as mp
 
 import sys,logging
 import os,time
+from TrainGAP import distributed_main, distributed_main_horovod
 
 logger = logging.getLogger(__name__)
 
-def run_distributed(distributed_main, args):
+def run_distributed(args):
     '''
+    Check if horovod is used to start the process.
     Check if distributed variables are set properly. If not start a multiprocess module. 
     Else set the variables in args and call distributed_main(). 
     local_rank, global_rank, world_size, master_node, master_port
     '''
-    if args.local_rank > -1:
+    if args.use_horovod:
+        distributed_main_horovod(args)
+    elif args.local_rank > -1:
         if args.global_rank is not None:
             #explicit ranks set
             distributed_main(args)

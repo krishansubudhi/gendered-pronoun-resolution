@@ -31,3 +31,8 @@ parser.add_argument('--start_rank', default = 0, type = int, help = 'starting ra
 #Explicit
 parser.add_argument('--local_rank', default = -1, type = int) #also passed in torch.distrib.launch
 parser.add_argument('--global_rank', default = None, type = int)
+
+#horovod
+parser.add_argument('--use_horovod', action="store_true", default=False)
+
+#print parser.parse_args(['-a', '-bval', '-c', '3'])
