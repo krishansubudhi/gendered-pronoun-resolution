@@ -1,4 +1,4 @@
-## Horovod
+# Horovod
 
 ![Img](https://user-images.githubusercontent.com/16640218/38965607-bf5c46ca-4332-11e8-895a-b9c137e86013.png)
 
@@ -19,25 +19,36 @@ One of the unique things about Horovod is its ability to interleave communicatio
 
 Horovod achieves 90% scaling efficiency for both Inception V3 and ResNet-101, and 68% scaling efficiency for VGG-16. 
 
+## Multi node
+
 Horovod requires every node to be able to ssh with each other without password. SSH uses port 22 for connection.
 For passwordless connection
+
 Node 1
+
      ssh-keygen -t rsa
      cat .ssh/id_rsa.pub
+
+
 Node 2
+
      vim .ssh/authorized_keys
      write node 1 public key
      
 Add the host itself in the authorized user list
-cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+
+    cat .ssh/id_rsa.pub >> .ssh/authorized_keys
 
 Do same for node 2 - node 1 too
 
 Test in node 1
-ssh <node2 ip>
+
+    ssh <node2 ip>
 prompt 'yes' for the first time. No prompt next time (verify later)
 
+
 Test in node 2
-ssh <node2 ip>
+
+    ssh <node2 ip>
 
 https://github.com/horovod/horovod/blob/master/docs/running.rst

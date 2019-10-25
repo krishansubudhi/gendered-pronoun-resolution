@@ -116,8 +116,9 @@ K80 GPUS
 
 |Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
-|GLOO| 0.409, | 256 s|0.449, 0.8458 |
-|NCCL| 0.409, | 212 s |0.449, 0.8458 |
+|DDP GLOO| 0.409, | 256 s|0.449, 0.8458 |
+|DDP NCCL| 0.409, | 212 s |0.449, 0.8458 |
+|Horovod NCCL| 0.589, 0.342 | 208 s |0.413, 0.837 |
 
 V100 GPUS
 
@@ -136,15 +137,32 @@ For multi node training I booted two azure VMs in same location and resource gro
 
 K80
 
+#### DDP
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |2 nodes, 2 processes| 0.43, 0.267 | 333 s |0.416, 0.841 |
-|2 nodes, 4 processes| 0.434, 0.16, 0.091, 0.764 | 204 s | 0.419, 0.8458 |
+|2 nodes, 4 processes| 0.37, 0.43, 0.25, 0.46 | 297 s | 0.43, 0.84 |
+
+#### Horovod
+
+|Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
+|--- | --- | --- | --- |
+|2 nodes, 2 processes| 0.614, 0.324 | 272 s |0.42, 0.843 |
+|2 nodes, 4 processes| 0.495, 0.147, 0.082, 0.597 | 221 s | 0.417, 0.834 |
 
 2 nodes 2 process decreased the speed while 2 nodes 4 process improved the speed. The intuition is with more number of processes, the communicaiton time is constant but the parallelisation improved. But this needs more analysis.
 
-Previously with 4 processes my the performance has degraded. The reson was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
+Previously with 4 processes my the performance has degraded. The reason was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
 
+Horovod is faster than vanilla DDP. The reason can be the fact that horovod avoids reduction at every step if GA > 1 
+
+    optimizer = hvd.DistributedOptimizer(optimizer, named_parameters = model.named_parameters(), backward_passes_per_step = args.gradient_accumulation)
+
+In horovod code,
+
+    self._allreduce_delay = {v: self.backward_passes_per_step
+                                 for _, v in sorted(named_parameters)}
+                                 
 **Instructions to run multinode tranining:**
 
 [Pytorch DDP](https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md)
