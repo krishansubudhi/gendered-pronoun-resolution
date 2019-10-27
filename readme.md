@@ -9,7 +9,7 @@ Training and validation data: https://github.com/google-research-datasets/gap-co
 
 1. ~Create a working solution with good accuracy.~
 2. ~Compare different approaches.~
-3. Apply Distributed training using pytorch Distributed Data Parallel and Horovod. Document speed improvement.
+3. ~Apply Distributed training using pytorch Distributed Data Parallel and Horovod. Document speed improvement.~
 4. Use NVIDIA apex library for 16 bit floating point precission (fp16). Show training speed and metrics.
 5. Use azure ML to train. 
 6. Use hyperdrive.
@@ -169,3 +169,34 @@ In horovod code,
 
 
 [Using Horovod](Horovod.md)
+
+# Using NVIDIA Apex 
+Amp: Automatic Mixed Precision
+
+The Volta generation of GPUs introduces tensor cores, which provide 8x more throughput than single precision math pipelines. NVIDIA tensor cores provide hardware acceleration for mixed precision training. Mixed precision methods combine the use of different numerical formats in one computational workload. 
+
+There are numerous benefits to using numerical formats with lower precision than 32-bit floating point. 
+
+1. They require less memory, enabling the training and deployment of larger neural networks. 
+    
+2. They require less memory bandwidth, thereby speeding up data transfer operations. 
+
+3. Math operations run much faster in reduced precision, especially on GPUs with Tensor Core support for that precision. 
+
+Mixed precision training achieves all these benefits while ensuring that no task-specific accuracy is lost compared to full precision training. It does so by identifying the steps that require full precision and using 32-bit floating point for only those steps while using 16-bit floating point everywhere else.
+
+https://github.com/NVIDIA/apex
+
+
+![FP 16 IEEE format](https://devblogs.nvidia.com/wp-content/uploads/2019/01/ieee_formats.png)
+
+[Using Tensor Cores for Mixed-Precision Scientific Computing](https://devblogs.nvidia.com/tensor-cores-mixed-precision-scientific-computing/)
+
+
+[Video Series: Mixed-Precision Training Techniques Using Tensor Cores for Deep Learning](https://devblogs.nvidia.com/video-mixed-precision-techniques-tensor-cores-deep-learning/?ncid=so-twi-dplgdrd3-73821)
+
+https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html
+
+[Slides](https://github.com/mcarilli/mixed_precision_references/blob/master/GTC_2019/Session_9998_carilli.pdf)
+
+[Pytorch slides](https://github.com/mcarilli/mixed_precision_references/blob/master/GTC_2019/Session_9998_carilli.pdf)
