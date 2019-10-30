@@ -35,4 +35,7 @@ parser.add_argument('--global_rank', default = None, type = int)
 #horovod
 parser.add_argument('--use_horovod', action="store_true", default=False)
 
-#print parser.parse_args(['-a', '-bval', '-c', '3'])
+#fp16
+# https://nvidia.github.io/apex/amp.html
+parser.add_argument('--fp16', action="store_true", default=False)
+parser.add_argument('--amp_opt_level', default="00", type = str)

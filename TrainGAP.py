@@ -93,6 +93,12 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
     losses = []
     total_loss = 0
     
+    #fp16 AMP changes
+    if args.fp16:
+        #Doubt. this needs to be done before wrapping with DDP. 
+        #Not sure about horovod wrapper for optimizer.
+        amp.initialize(model,optimizer,args.amp_opt_level)
+    
     for epoch in range(args.epochs):
         start = time.time()
         logger.info(f'Training epoch {epoch}')
@@ -106,7 +112,9 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             #logger.info(f'step = {step}, loss = {losses[-1]}')
 
             loss = loss/args.gradient_accumulation
-            loss.backward()
+
+            with amp.scale_loss(loss,optimizer) as scaled_loss:
+                scaled_loss.backward()
 
             total_loss+=loss.item()
 

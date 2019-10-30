@@ -52,3 +52,34 @@ Test in node 2
     ssh <node2 ip>
 
 https://github.com/horovod/horovod/blob/master/docs/running.rst
+
+## How Horovod works?
+
+Loss.backward hook is present in [DistributedOptimize](https://github.com/horovod/horovod/blob/master/horovod/torch/__init__.py) class
+
+
+    def _make_hook(self, p)
+
+The following registers all the hooks in the model parameters
+
+    def _register_hooks(self)
+
+
+Then during the stepping,horovod synchronizes all the grads
+
+``` python
+def step(self, closure=None):
+    if self._should_synchronize:
+        ---
+        self.synchronize()
+    self._synchronized = False
+    return super(self.__class__, self).step(closure)
+```
+
+The class to synchronize does the all reduce operation
+
+```python
+def synchronize(self):
+    for p, value in self._handles.items():
+        handle, ctx = self._allreduce_grad_async(p)
+```
