@@ -18,6 +18,8 @@ import sys,logging
 import os,time
 import dist_util
 
+from apex import amp
+
 logging.root.handlers = []
 logging.basicConfig(level="INFO", 
                     format = '%(asctime)s:%(levelname)s: %(message)s' ,
@@ -109,6 +111,8 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             if args.fp16:
                 with amp.scale_loss(loss,optimizer) as scaled_loss:
                     scaled_loss.backward()
+            else:
+                loss.backward()
 
             # Does this mean horovod reduction which happens at optimizer.step() is FP32?
 
