@@ -93,12 +93,6 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
     losses = []
     total_loss = 0
     
-    #fp16 AMP changes
-    if args.fp16:
-        #Doubt. this needs to be done before wrapping with DDP. 
-        #Not sure about horovod wrapper for optimizer.
-        amp.initialize(model,optimizer,args.amp_opt_level)
-    
     for epoch in range(args.epochs):
         start = time.time()
         logger.info(f'Training epoch {epoch}')
@@ -112,9 +106,11 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             #logger.info(f'step = {step}, loss = {losses[-1]}')
 
             loss = loss/args.gradient_accumulation
+            if args.fp16:
+                with amp.scale_loss(loss,optimizer) as scaled_loss:
+                    scaled_loss.backward()
 
-            with amp.scale_loss(loss,optimizer) as scaled_loss:
-                scaled_loss.backward()
+            # Does this mean horovod reduction which happens at optimizer.step() is FP32?
 
             total_loss+=loss.item()
 
@@ -158,6 +154,12 @@ def initialize(args):
     model = model.to(args.device)
 
     optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
+
+    #fp16 AMP changes
+    if args.fp16:
+        # This needs to be done before wrapping with DDP or horovod.
+        torch.cuda.set_device(args.device) #not sure if it's required
+        amp.initialize(model,optimizer,args.amp_opt_level)
 
     return model, optimizer, train_dataset, val_dataset
 

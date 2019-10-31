@@ -38,4 +38,4 @@ parser.add_argument('--use_horovod', action="store_true", default=False)
 #fp16
 # https://nvidia.github.io/apex/amp.html
 parser.add_argument('--fp16', action="store_true", default=False)
-parser.add_argument('--amp_opt_level', default="00", type = str)
+parser.add_argument('--amp_opt_level', default="01", type = str)##00 is FP32
