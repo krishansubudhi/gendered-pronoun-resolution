@@ -114,15 +114,16 @@ Also the notebook mp_spawn shows easier way to start multiple processes in one c
 
 K80 GPUS
 
-|Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
+|Backend|Training loss (process1,process2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |DDP GLOO| 0.409, | 256 s|0.449, 0.8458 |
 |DDP NCCL| 0.409, | 212 s |0.449, 0.8458 |
+|DDP NCCL FP16| 0.5, 0.29 | 370 s |0.449, 0.8458 |
 |Horovod NCCL| 0.589, 0.342 | 208 s |0.413, 0.837 |
 
 V100 GPUS
 
-|Backend|Training loss (node1,node2) |Time taken for epoch 1 |Val loss, val_acc |
+|Backend|Training loss (process1,process2) |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |GLOO| 0.441, 0.301 | 218 s| - |
 |NCCL| 0.549, 0.212 | 179 s | - |
@@ -130,6 +131,8 @@ V100 GPUS
 Conclusion: Multiprocess traning is faster than single process training. NCCL is faster then GLOO. In V100s, NCCL with two processes only consumed 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
 
 Hence rest of the experiments will be done with NCCL backend only.
+
+The reason why FP16 is slower in K80s is because tesor cores are present only for V100s. Possibly the monkey patching is worsening performance in K80s. Needs more testing.
 
 ### Performance with multi node 
 
@@ -142,17 +145,24 @@ K80
 |--- | --- | --- | --- |
 |2 nodes, 2 processes| 0.43, 0.267 | 333 s |0.416, 0.841 |
 |2 nodes, 4 processes| 0.37, 0.43, 0.25, 0.46 | 297 s | 0.43, 0.84 |
+|2 nodes, 4 processes, FP16| 0.1, 0.76, 0.16, 0.44 | 342 s | 0.4, 0.84 |
+
+2 nodes 2 process decreased the speed while 2 nodes 4 process improved the speed. The intuition is with more number of processes, the communicaiton time is constant but the parallelisation improved. But this needs more analysis.
+
+Previously with 4 processes my the performance has degraded. The reason was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
 
 #### Horovod
+
+Horovod involves 2 steps
+1. Installing mpi, horovod and nccl 
+2. making all noded ssh between each other
 
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |2 nodes, 2 processes| 0.614, 0.324 | 272 s |0.42, 0.843 |
 |2 nodes, 4 processes| 0.495, 0.147, 0.082, 0.597 | 221 s | 0.417, 0.834 |
 
-2 nodes 2 process decreased the speed while 2 nodes 4 process improved the speed. The intuition is with more number of processes, the communicaiton time is constant but the parallelisation improved. But this needs more analysis.
-
-Previously with 4 processes my the performance has degraded. The reason was I was not reducing batch size per GPU hence the overall batch size was consant. Since I kept my learning rate constant, the higher batch performance was bad. The current result has per gpu batch size = 8 for 4 processes. and 16 for 2 processes making the overall batch size = 32 in both the cases.
+Todo: Why horovod performance is slightly worse than DDP?
 
 Horovod is faster than vanilla DDP. The reason can be the fact that horovod avoids reduction at every step if GA > 1 
 
@@ -167,8 +177,8 @@ In horovod code,
 
 [Pytorch DDP](https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md)
 
-
 [Using Horovod](Horovod.md)
 
+**Instructions to run mixed precission tranining:**
 [Using APEX](fp16.md) 
 
