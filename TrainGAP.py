@@ -103,10 +103,15 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
         
         for step, batch in enumerate(batch_iterator):
             batch = (t.to(args.device) for t in batch)
+
+            # disable require_forward_param_sync 
             loss,logits = model(*batch)
 
-            #logger.info(f'step = {step}, loss = {losses[-1]}')
-
+            #Diabling reduction.
+            if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+                model.require_backward_grad_sync = False \
+                    if (step+1) % args.gradient_accumulation == 0 else True
+            
             loss = loss/args.gradient_accumulation
             if args.fp16:
                 with amp.scale_loss(loss,optimizer) as scaled_loss:
@@ -114,6 +119,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             else:
                 loss.backward()
 
+            
             # Does this mean horovod reduction which happens at optimizer.step() is FP32?
 
             total_loss+=loss.item()
