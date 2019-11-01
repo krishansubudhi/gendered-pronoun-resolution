@@ -90,6 +90,7 @@ def evaluate(val_dataloader,model, args):
     loss = total_loss/steps
     return loss,acc
 
+import time
 def train(train_dataloader, val_dataloader, model, optimizer, args ):
 
     losses = []
@@ -105,13 +106,18 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             batch = (t.to(args.device) for t in batch)
 
             # disable require_forward_param_sync 
+            #start = time.time()
             loss,logits = model(*batch)
-
-            #Diabling reduction.
-            if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-                model.require_backward_grad_sync = False \
-                    if (step+1) % args.gradient_accumulation == 0 else True
+            #end = time.time()
+            #logger.info(f'forward :{step} time = {end-start}')            
             
+            #start = time.time()
+            
+            # Disabling reduction.Does not work. Check DDP source code later
+            #if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+            #    model.require_backward_grad_sync = True \
+            #        if (step+1) % args.gradient_accumulation == 0 else False
+                
             loss = loss/args.gradient_accumulation
             if args.fp16:
                 with amp.scale_loss(loss,optimizer) as scaled_loss:
@@ -124,6 +130,10 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
 
             total_loss+=loss.item()
 
+            #end = time.time()
+            #add context manager instead
+            #logger.info(f'backward :{step} time = {end-start}')
+            
             if (step+1) % args.gradient_accumulation == 0:
                 optimizer.step()
                 optimizer.zero_grad()
@@ -149,6 +159,10 @@ def initialize(args):
     # Create datasets
 
     train_df =  pd.read_pickle('train_processed.pkl')
+    
+    if args.sample_limit:
+        train_df = train_df.iloc[:args.sample_limit]
+    
     val_df =  pd.read_pickle('val_processed.pkl')
 
     train_dataset = create_dataset(train_df)
