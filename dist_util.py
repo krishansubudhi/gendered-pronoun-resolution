@@ -21,8 +21,10 @@ def run_distributed(args):
     Else set the variables in args and call distributed_main(). 
     local_rank, global_rank, world_size, master_node, master_port
     '''
+    #HOROVOD
     if args.use_horovod:
         distributed_main_horovod(args)
+    ##DDP
     elif args.local_rank > -1:
         if args.global_rank is not None:
             #explicit ranks set
@@ -31,6 +33,10 @@ def run_distributed(args):
             #torch.distrib.launch
             update_args_from_env(args)
             distributed_main(args)
+        #AML and distributed multi node
+    elif 'OMPI_COMM_WORLD_LOCAL_RANK' in os.environ:
+        update_args_from_aml_env(args)
+        distributed_main(args)
     else:
         #spawn processes
         #https://pytorch.org/docs/stable/distributed.html#launch-utility
@@ -48,6 +54,18 @@ def update_args_from_env(args):
     args.master_node = current_env["MASTER_ADDR"]
     args.master_port = int(current_env["MASTER_PORT"])
     args.world_size = int(current_env["WORLD_SIZE"])
+
+def update_args_from_aml_env(args):
+        args.local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+        args.global_rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
+        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
+        
+        #NCCL environment. Still works without it.
+        os.environ['NCCL_SOCKET_IFNAME'] = '^docker0,lo'
+        
+        master_node_params = os.environ['AZ_BATCH_MASTER_NODE'].split(':')        
+        args.master_node = master_node_params[0]
+        args.master_port = master_node_params[1]
 
 def spawn_fn(local_rank, distributed_main, args):
     logger.info(f'inside spawn method . Rank = {local_rank}')

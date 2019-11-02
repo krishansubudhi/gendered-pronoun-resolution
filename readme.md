@@ -182,3 +182,8 @@ In horovod code,
 **Instructions to run mixed precission tranining:**
 [Using APEX](fp16.md) 
 
+## Running on AML
+Since AML directly supports Horovod, I will try running this wihtout any changes with use_horovod flag.
+
+Use the pytorch estimator:
+

@@ -113,7 +113,7 @@ def create_features(df):
 
 
 if __name__ == '__main__':
-
+    print('hello')
     print(os.listdir())
 
     train_file = 'gap-coreference/gap-development.tsv'

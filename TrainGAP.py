@@ -18,14 +18,24 @@ import sys,logging
 import os,time
 import dist_util
 
-from apex import amp
-
 logging.root.handlers = []
 logging.basicConfig(level="INFO", 
                     format = '%(asctime)s:%(levelname)s: %(message)s' ,
                     stream = sys.stdout)
 logger = logging.getLogger(__name__)
 logger.info('hello')
+MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
+                'mul' : BertForPronounResolution_Mul,
+                'segment' : BertForPronounResolution_Segment
+                }
+
+def init_logger(local_rank):
+    global logger 
+    logging.root.handlers = []
+    logging.basicConfig(level="INFO", 
+                    format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(local_rank) ,
+                    stream = sys.stdout)
+    logger = logging.getLogger(__name__)
 
 def get_features_from_example(ex, tokenizer):
     cls_id = tokenizer.convert_tokens_to_ids(tokenizer._cls_token)
@@ -64,6 +74,39 @@ def create_dataset(df):
 
     return TensorDataset(ids, masks, pabs, labels)
 
+def initialize(args):
+    
+    # Create datasets
+
+    train_df =  pd.read_pickle('train_processed.pkl')
+    
+    if args.sample_limit:
+        train_df = train_df.iloc[:args.sample_limit]
+    
+    val_df =  pd.read_pickle('val_processed.pkl')
+
+    train_dataset = create_dataset(train_df)
+    val_dataset = create_dataset(val_df)
+
+    #Create model
+
+    model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
+    if type(model) is BertForPronounResolution_Segment:
+        model.post_init()
+    
+    logger.info(f'Model used = {type(model)}')
+    model = model.to(args.device)
+
+    optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
+
+    #fp16 AMP changes
+    if args.fp16:
+        from apex import amp
+        # This needs to be done before wrapping with DDP or horovod.
+        torch.cuda.set_device(args.device) #not sure if it's required
+        amp.initialize(model,optimizer,args.amp_opt_level)
+
+    return model, optimizer, train_dataset, val_dataset
 
 
 def evaluate(val_dataloader,model, args):
@@ -148,52 +191,6 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
         
     return losses, val_loss , val_acc
 
-    
-MODEL_CLASSES = {'concat' : BertForPronounResolution_Concat,
-                'mul' : BertForPronounResolution_Mul,
-                'segment' : BertForPronounResolution_Segment
-                }
-
-def initialize(args):
-    
-    # Create datasets
-
-    train_df =  pd.read_pickle('train_processed.pkl')
-    
-    if args.sample_limit:
-        train_df = train_df.iloc[:args.sample_limit]
-    
-    val_df =  pd.read_pickle('val_processed.pkl')
-
-    train_dataset = create_dataset(train_df)
-    val_dataset = create_dataset(val_df)
-
-    #Create model
-
-    model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
-    if type(model) is BertForPronounResolution_Segment:
-        model.post_init()
-    
-    logger.info(f'Model used = {type(model)}')
-    model = model.to(args.device)
-
-    optimizer = torch.optim.Adam(model.parameters(),lr = args.lr) #change it to AdamW later
-
-    #fp16 AMP changes
-    if args.fp16:
-        # This needs to be done before wrapping with DDP or horovod.
-        torch.cuda.set_device(args.device) #not sure if it's required
-        amp.initialize(model,optimizer,args.amp_opt_level)
-
-    return model, optimizer, train_dataset, val_dataset
-
-def init_logger(local_rank):
-    global logger 
-    logging.root.handlers = []
-    logging.basicConfig(level="INFO", 
-                    format = 'Ranks {}: %(asctime)s:%(levelname)s: %(message)s'.format(local_rank) ,
-                    stream = sys.stdout)
-    logger = logging.getLogger(__name__)
 
 def main(args):
     logger.info('Starting single GPU/CPU training')   
