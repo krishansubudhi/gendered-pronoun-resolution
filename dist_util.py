@@ -36,6 +36,7 @@ def run_distributed(args):
         #AML and distributed multi node
     elif 'OMPI_COMM_WORLD_LOCAL_RANK' in os.environ:
         update_args_from_aml_env(args)
+        args.isaml = True
         distributed_main(args)
     else:
         #spawn processes
@@ -59,7 +60,7 @@ def update_args_from_aml_env(args):
         args.local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
         args.global_rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
         args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
-        
+
         #NCCL environment. Still works without it.
         os.environ['NCCL_SOCKET_IFNAME'] = '^docker0,lo'
         

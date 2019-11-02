@@ -2,10 +2,17 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--epochs', default=1, type = int, required=False,
-                    help = 'Number of epochs' )
+parser.add_argument('--input_dir', default=".", type = str,
+                    help = 'Input data dir' )
+
+parser.add_argument('--output_dir', default=".", type = str,
+                    help = 'Input data dir' )
+
 parser.add_argument('--lr', default=2E-5, type = float, required= False,
                     help = 'Learning Rate')
+
+parser.add_argument('--epochs', default=1, type = int, required=False,
+                    help = 'Number of epochs' )
 
 parser.add_argument('--per_gpu_batch_size',default= 32, type = int )
 
@@ -40,3 +47,6 @@ parser.add_argument('--use_horovod', action="store_true", default=False)
 # https://nvidia.github.io/apex/amp.html
 parser.add_argument('--fp16', action="store_true", default=False)
 parser.add_argument('--amp_opt_level', default="01", type = str)##00 is FP32
+
+#AML
+parser.add_argument('--isaml', action="store_true", default=False)

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 import torch, os
 from torch.utils.data import (Dataset,DataLoader, RandomSampler, SequentialSampler,
@@ -111,14 +110,28 @@ def create_features(df):
         processed_df = processed_df.append({'input':np.array(final_tokens), 'pab_pos':np.array(pab_position), 'label':int(label)}, ignore_index=True)
     return processed_df
 
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input_dir', default=".", type = str,
+                        help = 'Input data dir' )
+
+    parser.add_argument('--output_dir', default=".", type = str,
+                        help = 'Input data dir' )
+
+    return parser.parse_args()
 
 if __name__ == '__main__':
     print('hello')
     print(os.listdir())
 
-    train_file = 'gap-coreference/gap-development.tsv'
-    val_file = 'gap-coreference/gap-validation.tsv'
-    test_file = 'gap-coreference/gap-test.tsv'
+    args = parse_args()
+    print(args)
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    train_file = os.path.join(args.input_dir,'gap-coreference/gap-development.tsv')
+    val_file = os.path.join(args.input_dir,'gap-coreference/gap-validation.tsv')
+    test_file = os.path.join(args.input_dir,'gap-coreference/gap-test.tsv')
 
     train_df = pd.read_csv(train_file,sep = '\t')
     val_df = pd.read_csv(val_file,sep = '\t')
@@ -127,15 +140,15 @@ if __name__ == '__main__':
     processed_df = create_features(val_df)
     #for reading purpose
     #saving to TSV will not store the data types of ndarray. It converts them to str
-    processed_df.to_csv('val_processed.tsv', sep='\t')
-    processed_df.to_pickle('val_processed.pkl')
-    df = pd.read_pickle('val_processed.pkl')
+    processed_df.to_csv(os.path.join(args.output_dir,'val_processed.tsv'), sep='\t')
+    processed_df.to_pickle(os.path.join(args.output_dir,'val_processed.pkl'))
+    df = pd.read_pickle(os.path.join(args.output_dir,'val_processed.pkl'))
 
     print('Processing training data')
     processed_df = create_features(train_df)
-    processed_df.to_csv('train_processed.tsv', sep='\t')
-    processed_df.to_pickle('train_processed.pkl')
-    df = pd.read_pickle('train_processed.pkl')
+    processed_df.to_csv(os.path.join(args.output_dir,'train_processed.tsv'), sep='\t')
+    processed_df.to_pickle(os.path.join(args.output_dir,'train_processed.pkl'))
+    df = pd.read_pickle(os.path.join(args.output_dir,'train_processed.pkl'))
     
     print(os.listdir())
     print(df.head())

@@ -62,12 +62,12 @@ def get_features_from_example(ex, tokenizer):
     return input, mask, pab, int(ex.label)
 
 def create_dataset(df):
-    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased',cache_dir = 'cache'+str(args.local_rank))
     features = [get_features_from_example(df.iloc[i],tokenizer) for i in range(len(df))]
 
     ids = torch.tensor([feature[0] for feature in features])
     masks = torch.tensor([feature[1] for feature in features])
-    pabs = torch.tensor([feature[2] for feature in features])
+    pabs = torch.tensor([feature[2] for feature in features], dtype = torch.long)
     labels = torch.tensor([feature[3] for feature in features])
 
     #logger.info(ids.size(), masks.size(), pabs.size(), labels.size())
@@ -78,12 +78,12 @@ def initialize(args):
     
     # Create datasets
 
-    train_df =  pd.read_pickle('train_processed.pkl')
+    train_df =  pd.read_pickle(os.path.join(args.input_dir,'train_processed.pkl'))
     
     if args.sample_limit:
         train_df = train_df.iloc[:args.sample_limit]
     
-    val_df =  pd.read_pickle('val_processed.pkl')
+    val_df =  pd.read_pickle(os.path.join(args.input_dir,'val_processed.pkl'))
 
     train_dataset = create_dataset(train_df)
     val_dataset = create_dataset(val_df)
@@ -105,6 +105,10 @@ def initialize(args):
         # This needs to be done before wrapping with DDP or horovod.
         torch.cuda.set_device(args.device) #not sure if it's required
         amp.initialize(model,optimizer,args.amp_opt_level)
+
+    if args.isaml:
+        from azureml.core import Run
+        args.run = Run.get_context()
 
     return model, optimizer, train_dataset, val_dataset
 
@@ -179,17 +183,37 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
             
             if (step+1) % args.gradient_accumulation == 0:
                 optimizer.step()
+
                 optimizer.zero_grad()
                 losses.append(total_loss)
+                log_aml(args,'train_loss', total_loss)
                 batch_iterator.set_postfix({'loss':losses[-1]}, refresh=True)
-                #batch_iterator.write(f'step = {step}, loss = {total_loss}')
                 total_loss=0
+
         end = time.time()
         logger.info(f'Time taken for epoch {epoch+1} is = {end-start}')
+        log_aml(args, 'epoch_time', end-start)
         val_loss , val_acc = evaluate(val_dataloader, model, args)
         logger.info(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
-        
+        log_aml(args, 'val_loss', val_loss)
     return losses, val_loss , val_acc
+
+def log_aml(args, key,val):
+    if args.isaml:
+        if not args.is_distributed or args.global_rank == 0:
+            args.run.log(key,val)
+
+def finish(args, model, optimizer):
+    if args.is_distributed and args.global_rank == 0:
+        os.makedirs(args.output_dir, exist_ok=True)
+        torch.save(model.state_dict(),'model_checkpoint.pt')
+        if args.fp16:
+            checkpoint = {
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'amp': amp.state_dict()
+            }
+            torch.save(checkpoint, 'amp_checkpoint.pt')
 
 
 def main(args):
@@ -209,6 +233,7 @@ def main(args):
     val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
+    finish(args, model, optimizer)
 
 
 def distributed_main(args):
@@ -240,6 +265,7 @@ def distributed_main(args):
     val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
+    finish(args, model, optimizer)
 
 def distributed_main_horovod(args):
     import horovod.torch as hvd
@@ -265,6 +291,7 @@ def distributed_main_horovod(args):
     optimizer = hvd.DistributedOptimizer(optimizer, named_parameters = model.named_parameters(), backward_passes_per_step = args.gradient_accumulation)# <--
     
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
+    finish(args, model, optimizer)
 
 if __name__ == '__main__':
     args = parser.parse_args()
