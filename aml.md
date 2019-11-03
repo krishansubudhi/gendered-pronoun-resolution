@@ -16,6 +16,9 @@ This already sets up the environment for you. If you are starting out in a machi
 # Follow this guideline for end to end training example
 https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-train-pytorch
 
+# Hyperdrive
+
+https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-tune-hyperparameters
 
 # AML official documents
 
