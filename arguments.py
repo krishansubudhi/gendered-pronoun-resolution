@@ -49,4 +49,4 @@ parser.add_argument('--fp16', action="store_true", default=False)
 parser.add_argument('--amp_opt_level', default="01", type = str)##00 is FP32
 
 #AML
-parser.add_argument('--isaml', action="store_true", default=False)
+parser.add_argument('--isaml', action="store_true", default=False) #required for logging into portal

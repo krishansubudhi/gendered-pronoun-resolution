@@ -61,8 +61,8 @@ def get_features_from_example(ex, tokenizer):
     
     return input, mask, pab, int(ex.label)
 
-def create_dataset(df):
-    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased',cache_dir = 'cache'+str(args.local_rank))
+def create_dataset(df,args):
+    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased',cache_dir = args.cache_dir)
     features = [get_features_from_example(df.iloc[i],tokenizer) for i in range(len(df))]
 
     ids = torch.tensor([feature[0] for feature in features])
@@ -76,6 +76,10 @@ def create_dataset(df):
 
 def initialize(args):
     
+    # Create folders
+    args.cache_dir = os.path.join('/tmp/cache/',str(args.local_rank)) if args.isaml else './'
+    os.makedirs(args.cache_dir,exist_ok = True)
+
     # Create datasets
 
     train_df =  pd.read_pickle(os.path.join(args.input_dir,'train_processed.pkl'))
@@ -85,12 +89,12 @@ def initialize(args):
     
     val_df =  pd.read_pickle(os.path.join(args.input_dir,'val_processed.pkl'))
 
-    train_dataset = create_dataset(train_df)
-    val_dataset = create_dataset(val_df)
+    train_dataset = create_dataset(train_df,args)
+    val_dataset = create_dataset(val_df,args)
 
     #Create model
 
-    model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type)
+    model = MODEL_CLASSES[args.model_type].from_pretrained(args.bert_type, cache_dir = args.cache_dir)
     if type(model) is BertForPronounResolution_Segment:
         model.post_init()
     
@@ -167,6 +171,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
                 
             loss = loss/args.gradient_accumulation
             if args.fp16:
+                from apex import amp
                 with amp.scale_loss(loss,optimizer) as scaled_loss:
                     scaled_loss.backward()
             else:
@@ -196,6 +201,7 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
         val_loss , val_acc = evaluate(val_dataloader, model, args)
         logger.info(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         log_aml(args, 'val_loss', val_loss)
+        log_aml(args, 'val_acc', val_acc)
     return losses, val_loss , val_acc
 
 def log_aml(args, key,val):
@@ -269,7 +275,7 @@ def distributed_main(args):
 
 def distributed_main_horovod(args):
     import horovod.torch as hvd
-    hvd.init()
+    #hvd.init()
     
     print('hvd.local_rank()',hvd.local_rank())
     args.device = torch.device(hvd.local_rank())# <--

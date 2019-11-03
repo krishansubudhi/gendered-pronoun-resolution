@@ -23,3 +23,7 @@ https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-train-pyt
 https://docs.microsoft.com/en-us/azure/architecture/reference-architectures/ai/training-deep-learning
 
 https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-track-experiments
+
+### Accessing data through datastores in AML compute
+
+https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-access-data

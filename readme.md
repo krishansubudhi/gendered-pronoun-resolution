@@ -103,7 +103,7 @@ Performance is a bit slow in the K80 GPUs. Will benchmark in V100s after AzureML
 GPU | Training loss |Time taken for epoch 1 |Val loss, val_acc |
 --- | --- | --- | --- |
 K80 | 0.243 | 389 s|0.3918, 0.8546 |
-V100 | 0.28 | 290 s| - |
+V100 | 0.46 | 78 s| 0.44, 0.825 |
 
 ## Starting multiple process
 Refer the notebooks Multiprocess1 and Multiprocess2 for running disstributed data parallel training using 2 processes. Needs a VM with 2 GPUS.

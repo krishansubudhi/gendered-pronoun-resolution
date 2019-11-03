@@ -23,6 +23,7 @@ def run_distributed(args):
     '''
     #HOROVOD
     if args.use_horovod:
+        update_args_for_hvd(args)
         distributed_main_horovod(args)
     ##DDP
     elif args.local_rank > -1:
@@ -33,7 +34,7 @@ def run_distributed(args):
             #torch.distrib.launch
             update_args_from_env(args)
             distributed_main(args)
-        #AML and distributed multi node
+    #AML and distributed multi node
     elif 'OMPI_COMM_WORLD_LOCAL_RANK' in os.environ:
         update_args_from_aml_env(args)
         args.isaml = True
@@ -43,6 +44,13 @@ def run_distributed(args):
         #https://pytorch.org/docs/stable/distributed.html#launch-utility
         #https://github.com/pytorch/examples/blob/master/imagenet/main.py
         mp.spawn(spawn_fn, nprocs=args.nprocs, args = (distributed_main, args)) #spawn also sends the local_rank as first argument
+
+def update_args_for_hvd(args):
+    import horovod.torch as hvd
+    hvd.init()
+    args.local_rank = hvd.local_rank()
+    args.global_rank = hvd.rank()
+    args.world_size = hvd.size()
 
 def update_args_from_env(args):
     #https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
