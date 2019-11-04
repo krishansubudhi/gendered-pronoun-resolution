@@ -71,10 +71,12 @@ def update_args_from_aml_env(args):
 
         #NCCL environment. Still works without it.
         os.environ['NCCL_SOCKET_IFNAME'] = '^docker0,lo'
-        
-        master_node_params = os.environ['AZ_BATCH_MASTER_NODE'].split(':')        
-        args.master_node = master_node_params[0]
-        args.master_port = master_node_params[1]
+
+        # Only for multi node. This env is not present for single node AML jobs
+        if 'AZ_BATCH_MASTER_NODE' in os.environ:
+            master_node_params = os.environ['AZ_BATCH_MASTER_NODE'].split(':')        
+            args.master_node = master_node_params[0]
+            args.master_port = master_node_params[1]
 
 def spawn_fn(local_rank, distributed_main, args):
     logger.info(f'inside spawn method . Rank = {local_rank}')

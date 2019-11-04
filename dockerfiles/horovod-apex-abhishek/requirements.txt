@@ -1,0 +1,13 @@
+transformers
+scikit-learn
+pandas
+tqdm
+boto3
+requests
+packaging
+overrides
+pandas
+typing
+azureml-sdk[notebooks,contrib]
+scikit-image
+horovod

@@ -141,6 +141,9 @@ For multi node training I booted two azure VMs in same location and resource gro
 K80
 
 #### DDP
+
+All the commands can be found in the [MultiNode.ipynb](MultiNode.ipynb) notebook
+
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
 |2 nodes, 2 processes| 0.43, 0.267 | 333 s |0.416, 0.841 |
@@ -155,7 +158,11 @@ Previously with 4 processes my the performance has degraded. The reason was I wa
 
 Horovod involves 2 steps
 1. Installing mpi, horovod and nccl 
-2. making all noded ssh between each other
+2. making all nodes to be able to ssh between each other
+
+[Horovod documentation](Horovod.md)
+
+All the commands can be found in the [horovod_install.ipynb](horovod_install.ipynb) and [horovod_multinode.ipynb](horovod_multinode.ipynb) notebook
 
 |Nodes,Processes|Training loss |Time taken for epoch 1 |Val loss, val_acc |
 |--- | --- | --- | --- |
@@ -172,18 +179,63 @@ In horovod code,
 
     self._allreduce_delay = {v: self.backward_passes_per_step
                                  for _, v in sorted(named_parameters)}
-                                 
-**Instructions to run multinode tranining:**
+                                                            
 
-[Pytorch DDP](https://github.com/krishansubudhi/gendered-pronoun-resolution/blob/master/MultiNode.md)
-
-[Using Horovod](Horovod.md)
-
-**Instructions to run mixed precission tranining:**
+## Mixed precission tranining
 [Using APEX](fp16.md) 
 
+
 ## Running on AML
+
+[Docuementation on AML](aml.md)
+
+Notebook : [run_aml.ipynb](run_aml.ipynb)
+
 Since AML directly supports Horovod, I will try running this wihtout any changes with use_horovod flag.
+This works out of the box. 
 
-Use the pytorch estimator:
+For DDP I had to make certain changes where I fetch the ranks, world size and master node information from environment variables.
 
+### Apex in AML
+
+
+Apex needs to be built from source for the latest changes. Hence it can't be installed through the pip package argument option in pytorch estimator.
+
+For this reason a docker image needs to be created with all the required dependency. Since this docker image will install everything in a python environment, we will use that environment in aml
+```python
+                    #Docker image
+                    use_docker=True,
+                    custom_docker_image=image_name,
+                    user_managed=True)
+estimator._estimator_config.environment.python.interpreter_path = '/opt/miniconda/envs/amlbert/bin/python'
+```
+For DDP the docker image I created is =  'krishansubudhi/transformers_pytorch:1.3'
+
+This contains the binaries of latest apex and pytorch 1.3. This also contains transformers
+
+[Dockerfile](dockerfiles/Dockerfile)
+
+Since this did not contain horovod, I used the docker image created by Abhishek Rao which has both apex and horovod.
+
+    [10/24 1:34 PM] Abhishek Rao
+        My docker image is abhishekraok/spaceorca:1.3.2
+
+[Dockerfile](dockerfiles/horovod-apex-abhishek/Dockerfile)
+
+
+## Running code on local machine (CPU)
+
+git clone https://github.com/google-research-datasets/gap-coreference.git
+PreprocessGapData.py --output_dir processed_data
+python TrainGAP.py --sample_limit 10 --input_dir processed_data
+
+## Hyperdrive
+Hyperdrive [Documentation](aml.md) link can be found in the aml documentation.
+
+Notebook = [aml_hyperdrive.ipynb](aml_hyperdrive.ipynb)
+
+
+### OOM error
+https://pytorch.org/docs/stable/notes/cuda.html#cuda-memory-management
+    torch.cuda.empty_cache() # 7 GB of cached memory seen
+    

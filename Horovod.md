@@ -19,7 +19,7 @@ One of the unique things about Horovod is its ability to interleave communicatio
 
 Horovod achieves 90% scaling efficiency for both Inception V3 and ResNet-101, and 68% scaling efficiency for VGG-16. 
 
-## Multi node
+## Multi node - enable ssh
 
 Horovod requires every node to be able to ssh with each other without password. SSH uses port 22 for connection.
 For passwordless connection

@@ -22,7 +22,7 @@ parser.add_argument('--model_type', default = 'mul', type = str,
                     help = 'Model type from concat, mul or segment')
 parser.add_argument('--bert_type', default = 'bert-base-uncased', type = str,
                     help = 'Bert model type')
-parser.add_argument('--gradient_accumulation', default = 8, type = int)
+parser.add_argument('--gradient_accumulation', default = None, type = int) #not used
 parser.add_argument('--sample_limit', default = None, type = int)
 
 #DDP arguments                    

@@ -9,14 +9,17 @@ from torch.utils.data import DataLoader,TensorDataset, RandomSampler, Sequential
 import math
 from tqdm import trange
 from tqdm import tqdm as tqdm
-from BertModels import *
-from arguments import parser
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
 import sys,logging
 import os,time
+import tempfile
+
 import dist_util
+from dataset import get_features_from_example,create_dataset
+from BertModels import *
+from arguments import parser
 
 logging.root.handlers = []
 logging.basicConfig(level="INFO", 
@@ -37,47 +40,10 @@ def init_logger(local_rank):
                     stream = sys.stdout)
     logger = logging.getLogger(__name__)
 
-def get_features_from_example(ex, tokenizer):
-    cls_id = tokenizer.convert_tokens_to_ids(tokenizer._cls_token)
-    sep_id = tokenizer.convert_tokens_to_ids(tokenizer._sep_token)
-    max_length = 512
-
-    input = ex.input.copy()
-    pab = ex.pab_pos.copy()
-
-    #add special tokens [CLS at beginning], [SEP at end], [optional SEP before pos]
-    input = [cls_id]+tokenizer.convert_tokens_to_ids(input.tolist())+[sep_id]
-    pab += 1
-    
-    #attention masking and padding
-    mask = [1] * len(input)
-    pad_length = max_length -len(input)
-    #padding tokens and mask with 0
-    input = input + [0]*pad_length
-    mask = mask + [0]*pad_length
-
-    assert len(input) == max_length
-    assert len(mask) == max_length
-    
-    return input, mask, pab, int(ex.label)
-
-def create_dataset(df,args):
-    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased',cache_dir = args.cache_dir)
-    features = [get_features_from_example(df.iloc[i],tokenizer) for i in range(len(df))]
-
-    ids = torch.tensor([feature[0] for feature in features])
-    masks = torch.tensor([feature[1] for feature in features])
-    pabs = torch.tensor([feature[2] for feature in features], dtype = torch.long)
-    labels = torch.tensor([feature[3] for feature in features])
-
-    #logger.info(ids.size(), masks.size(), pabs.size(), labels.size())
-
-    return TensorDataset(ids, masks, pabs, labels)
-
 def initialize(args):
     
     # Create folders
-    args.cache_dir = os.path.join('/tmp/cache/',str(args.local_rank)) if args.isaml else './'
+    args.cache_dir = os.path.join(tempfile.gettempdir(),str(args.local_rank))
     os.makedirs(args.cache_dir,exist_ok = True)
 
     # Create datasets
@@ -89,8 +55,8 @@ def initialize(args):
     
     val_df =  pd.read_pickle(os.path.join(args.input_dir,'val_processed.pkl'))
 
-    train_dataset = create_dataset(train_df,args)
-    val_dataset = create_dataset(val_df,args)
+    train_dataset = create_dataset(train_df,args.cache_dir, args.bert_type)
+    val_dataset = create_dataset(val_df,args.cache_dir, args.bert_type)
 
     #Create model
 
@@ -118,6 +84,8 @@ def initialize(args):
 
 
 def evaluate(val_dataloader,model, args):
+    torch.cuda.empty_cache() # 7 GB of cached memory seen
+    
     all_labels = []
     all_preds = []
     total_loss = 0
@@ -129,7 +97,9 @@ def evaluate(val_dataloader,model, args):
             labels = batch[-1]
             batch = tuple(t.to(args.device) for t in batch)
             loss,logits = model(*batch)
-            preds = torch.argmax(logits, dim = 1)
+            #converting to float to avoid this error
+            #"argmax_cuda" not implemented for 'Half'
+            preds = torch.argmax(logits.float(), dim = 1)
 
             total_loss+=loss.item()
             all_labels.extend(labels.tolist())
@@ -299,9 +269,16 @@ def distributed_main_horovod(args):
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
     finish(args, model, optimizer)
 
+def recalculate_ga(args):
+    args.batch_size =  4 if args.fp16 else 2 #Bert Large
+    if 'bert-base' in args.bert_type:
+        args.batch_size *= 2 #Bert Base
+    args.gradient_accumulation = args.per_gpu_batch_size//args.batch_size
+
 if __name__ == '__main__':
     args = parser.parse_args()
-    args.batch_size = args.per_gpu_batch_size//args.gradient_accumulation
+    recalculate_ga(args)
+    
     logger.info (args)
 
     if args.is_distributed:
