@@ -94,14 +94,15 @@ def evaluate(val_dataloader,model, args):
     steps = 0
     with torch.no_grad():
         for batch in tqdm(val_dataloader):
-            labels = batch[-1]
             batch = tuple(t.to(args.device) for t in batch)
             loss,logits = model(*batch)
+            total_loss+=loss.item()
+            
+
             #converting to float to avoid this error
             #"argmax_cuda" not implemented for 'Half'
             preds = torch.argmax(logits.float(), dim = 1)
-
-            total_loss+=loss.item()
+            labels = batch[-1]
             all_labels.extend(labels.tolist())
             all_preds.extend(preds.tolist())
             steps += 1
@@ -180,7 +181,7 @@ def log_aml(args, key,val):
             args.run.log(key,val)
 
 def finish(args, model, optimizer):
-    if args.is_distributed and args.global_rank == 0:
+    if args.local_rank == -1 or (args.is_distributed and args.global_rank == 0):
         os.makedirs(args.output_dir, exist_ok=True)
         torch.save(model.state_dict(),'model_checkpoint.pt')
         if args.fp16:

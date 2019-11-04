@@ -234,6 +234,11 @@ Hyperdrive [Documentation](aml.md) link can be found in the aml documentation.
 
 Notebook = [aml_hyperdrive.ipynb](aml_hyperdrive.ipynb)
 
+Best Run Id:  Testing-AML-hyperdrive_1572883987357281_8
+
+ Accuracy: [0.9030837004405287, 0.8744493392070485, 0.8898678414096917, 0.9096916299559471]
+
+ params: ['--input_dir', 'processed_data', '--isaml', '--epochs', '1', '--fp16', '--val_batch_size', '32', '--bert_type', 'bert-large-uncased', '--epochs', '4', '--lr', '3E-05', '--model_type', 'mul', '--per_gpu_batch_size', '32']
 
 ### OOM error
 https://pytorch.org/docs/stable/notes/cuda.html#cuda-memory-management

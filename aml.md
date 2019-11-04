@@ -20,6 +20,32 @@ https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-train-pyt
 
 https://docs.microsoft.com/en-us/azure/machine-learning/service/how-to-tune-hyperparameters
 
+## Bug in hyperdrive code
+
+
+Fix this in file
+
+C:\users\krkusuk\AppData\Local\Continuum\miniconda3\envs\pytorch\lib\site-packages\azureml\train\hyperdrive\runconfig.py
+    
+if isinstance(param,str) and param.lstrip("-") in parameter_space:
+
+## Errors
+
+1. Bert large with 64 batch size failing.
+    Solution: dynamic batch size
+
+2. concat models failing during argmax
+
+        File "TrainGAP.py", line 132, in evaluate
+            preds = torch.argmax(logits, dim = 1)
+        RuntimeError: "argmax_cuda" not implemented for 'Half'
+        Error occurred: User program failed with RuntimeError: "argmax_cuda" not implemented for 'Half'
+    Solution : convert logits to float during argmax
+
+### Observations
+
+Bert large is giving 90% accuracy
+
 # AML official documents
 
 
