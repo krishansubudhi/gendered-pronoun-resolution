@@ -82,7 +82,7 @@ def get_tokens_with_positions(row):
 
 
 
-def create_features(df):
+def create_features(df, haslabels = True):
     '''
     Output Format:
     
@@ -100,12 +100,17 @@ def create_features(df):
         row = df.iloc[i]
         final_tokens, token_positions = get_tokens_with_positions(row)
         
-        assert(final_tokens[token_positions['p']] in row['Pronoun'].lower())
-        assert(final_tokens[token_positions['a']] in row['A'].lower()), print(row)
-        assert(final_tokens[token_positions['b']] in row['B'].lower())
+        assert(final_tokens[token_positions['p']] in row['Pronoun'].lower()), i
+        #Assert fails for unicode characters which get converted to ascii --- Raúl García
+        #assert(final_tokens[token_positions['a']] in row['A'].lower()), i
+        #assert(final_tokens[token_positions['b']] in row['B'].lower()), i 
         
         pab_position = [token_positions[key] for key in 'pab']
-        label = 1 if row['A-coref'] else ( 2 if row['B-coref'] else 0)
+        
+        if haslabels:
+            label = 1 if row['A-coref'] else ( 2 if row['B-coref'] else 0)
+        else:
+            label = 0
         
         processed_df = processed_df.append({'input':np.array(final_tokens), 'pab_pos':np.array(pab_position), 'label':int(label)}, ignore_index=True)
     return processed_df
@@ -117,7 +122,7 @@ def parse_args():
                         help = 'Input data dir' )
 
     parser.add_argument('--output_dir', default=".", type = str,
-                        help = 'Input data dir' )
+                        help = 'Output data dir' )
 
     return parser.parse_args()
 
@@ -142,16 +147,20 @@ if __name__ == '__main__':
     #saving to TSV will not store the data types of ndarray. It converts them to str
     processed_df.to_csv(os.path.join(args.output_dir,'val_processed.tsv'), sep='\t')
     processed_df.to_pickle(os.path.join(args.output_dir,'val_processed.pkl'))
-    df = pd.read_pickle(os.path.join(args.output_dir,'val_processed.pkl'))
+    df1 = pd.read_pickle(os.path.join(args.output_dir,'val_processed.pkl'))
 
     print('Processing training data')
     processed_df = create_features(train_df)
     processed_df.to_csv(os.path.join(args.output_dir,'train_processed.tsv'), sep='\t')
     processed_df.to_pickle(os.path.join(args.output_dir,'train_processed.pkl'))
-    df = pd.read_pickle(os.path.join(args.output_dir,'train_processed.pkl'))
-    
-    print(os.listdir())
-    print(df.head())
+    df2 = pd.read_pickle(os.path.join(args.output_dir,'train_processed.pkl'))
+
+    #concatenated dataframe for final training
+    combined_df = pd.concat([df1, df2], ignore_index= "true")
+    combined_df.to_pickle(os.path.join(args.output_dir,'train_val_combined.pkl'))
+
+    print(os.listdir(args.output_dir))
+    print(f'combined_df length = {len(combined_df)}')
 
     
 

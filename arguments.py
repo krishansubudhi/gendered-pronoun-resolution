@@ -4,6 +4,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--input_dir', default=".", type = str,
                     help = 'Input data dir' )
+parser.add_argument('--train_file',default = 'train_processed.pkl', type=str)
+parser.add_argument('--val_file',default = 'val_processed.pkl', type=str)
 
 parser.add_argument('--output_dir', default=".", type = str,
                     help = 'Input data dir' )

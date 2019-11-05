@@ -7,12 +7,13 @@ Training and validation data: https://github.com/google-research-datasets/gap-co
 
 # Goals
 
-1. ~Create a working solution with good accuracy.~
-2. ~Compare different approaches.~
-3. ~Apply Distributed training using pytorch Distributed Data Parallel and Horovod. Document speed improvement.~
+1. Create a working solution with good accuracy.
+2. Compare different approaches.
+3. Apply Distributed training using pytorch Distributed Data Parallel and Horovod. Document speed improvement.
 4. Use NVIDIA apex library for 16 bit floating point precission (fp16). Show training speed and metrics.
 5. Use azure ML to train. 
 6. Use hyperdrive.
+7. Predict and submit to kaggle.
 
 # Steps
 
@@ -80,6 +81,13 @@ logits = linear(CLS_hidden)
 Epoch = 1, Val loss = 1.003, val_acc = 0.5176
 
 This performs the worst among the three. Probable casue can be the addition of many untrained weights at the beginning of the pretrained model. Or segment ids are not useful at all. It needs further debugging.
+
+
+## Running code on local machine (CPU)
+
+    git clone https://github.com/google-research-datasets/gap-coreference.git
+    PreprocessGapData.py --output_dir processed_data
+    python TrainGAP.py --sample_limit 10 --input_dir processed_data
 
 
 #  Distributed training
@@ -185,7 +193,7 @@ In horovod code,
 [Using APEX](fp16.md) 
 
 
-## Running on AML
+# AML
 
 [Docuementation on AML](aml.md)
 
@@ -196,7 +204,7 @@ This works out of the box.
 
 For DDP I had to make certain changes where I fetch the ranks, world size and master node information from environment variables.
 
-### Apex in AML
+## Apex in AML
 
 
 Apex needs to be built from source for the latest changes. Hence it can't be installed through the pip package argument option in pytorch estimator.
@@ -223,13 +231,8 @@ Since this did not contain horovod, I used the docker image created by Abhishek 
 [Dockerfile](dockerfiles/horovod-apex-abhishek/Dockerfile)
 
 
-## Running code on local machine (CPU)
 
-git clone https://github.com/google-research-datasets/gap-coreference.git
-PreprocessGapData.py --output_dir processed_data
-python TrainGAP.py --sample_limit 10 --input_dir processed_data
-
-## Hyperdrive
+# Hyperdrive
 Hyperdrive [Documentation](aml.md) link can be found in the aml documentation.
 
 Notebook = [aml_hyperdrive.ipynb](aml_hyperdrive.ipynb)
@@ -240,7 +243,31 @@ Best Run Id:  Testing-AML-hyperdrive_1572883987357281_8
 
  params: ['--input_dir', 'processed_data', '--isaml', '--epochs', '1', '--fp16', '--val_batch_size', '32', '--bert_type', 'bert-large-uncased', '--epochs', '4', '--lr', '3E-05', '--model_type', 'mul', '--per_gpu_batch_size', '32']
 
-### OOM error
-https://pytorch.org/docs/stable/notes/cuda.html#cuda-memory-management
-    torch.cuda.empty_cache() # 7 GB of cached memory seen
+
+
+# Kaggle Submission
+The prediciton dataset does not have any lables. Those data alsmo need to go through all the preprocessing steps.
+
+1. Find  the best hyper parameters using hyperdrive.
+2. Combine training and validation data during preprocessing.
+2. Run training on all data using best hyper parameters.
+3. Run preprocessing on test data. Add dummy labels. 
+4. Output validation set logits to output folder.
+
+[Preprocess_TestData.ipynb](Preprocess_TestData.ipynb)
+[final_training_prediction.ipynb](final_training_prediction.ipynb)
+
+Kaggle submission score:
+![kaggle](images/kaggle_submission.png)
+
+Results in : OneDrive\projects\gender-pronoun
+
+# Things that could not be completed
+1. Use CyclicLR
+2. Experiment with more architecture.
+3. Calculate confusion matrix and find areas where the model is not performing well.
+4. Run FP16 with horovod. 
     
+    * I couldn't run FP16 with horovod in VM becase my VMs being low priority got preempted and I did not want spend time configuring the VMs to ssh each other.
+
+    * I couldn't use horovod with FP16 in AML because , I did not have a working docker image.

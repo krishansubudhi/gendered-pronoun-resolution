@@ -21,6 +21,11 @@ from dataset import get_features_from_example,create_dataset
 from BertModels import *
 from arguments import parser
 
+try:
+    from apex import amp
+except:
+    print('amp not loaded')
+
 logging.root.handlers = []
 logging.basicConfig(level="INFO", 
                     format = '%(asctime)s:%(levelname)s: %(message)s' ,
@@ -45,15 +50,17 @@ def initialize(args):
     # Create folders
     args.cache_dir = os.path.join(tempfile.gettempdir(),str(args.local_rank))
     os.makedirs(args.cache_dir,exist_ok = True)
+    if args.local_rank == -1 or (args.is_distributed and args.global_rank == 0):
+        os.makedirs(args.output_dir, exist_ok=True)
 
     # Create datasets
 
-    train_df =  pd.read_pickle(os.path.join(args.input_dir,'train_processed.pkl'))
+    train_df =  pd.read_pickle(os.path.join(args.input_dir,args.train_file))
     
     if args.sample_limit:
         train_df = train_df.iloc[:args.sample_limit]
     
-    val_df =  pd.read_pickle(os.path.join(args.input_dir,'val_processed.pkl'))
+    val_df =  pd.read_pickle(os.path.join(args.input_dir,args.val_file))
 
     train_dataset = create_dataset(train_df,args.cache_dir, args.bert_type)
     val_dataset = create_dataset(val_df,args.cache_dir, args.bert_type)
@@ -92,12 +99,13 @@ def evaluate(val_dataloader,model, args):
     acc = 0
     model.eval()
     steps = 0
+    all_logits = []
     with torch.no_grad():
         for batch in tqdm(val_dataloader):
             batch = tuple(t.to(args.device) for t in batch)
             loss,logits = model(*batch)
             total_loss+=loss.item()
-            
+            all_logits.extend(torch.nn.functional.softmax(logits.float(),dim = 1).tolist())
 
             #converting to float to avoid this error
             #"argmax_cuda" not implemented for 'Half'
@@ -108,9 +116,12 @@ def evaluate(val_dataloader,model, args):
             steps += 1
 
 
+    print(all_logits, type(all_logits))
+    all_logits = np.array([[float(l) for l in logits] for logits in all_logits])
+    print(all_logits, type(all_logits))
     acc = np.sum(np.array(all_preds) == np.array(all_labels))/ len(all_preds)
     loss = total_loss/steps
-    return loss,acc
+    return loss,acc, all_logits, all_labels
 
 import time
 def train(train_dataloader, val_dataloader, model, optimizer, args ):
@@ -169,10 +180,15 @@ def train(train_dataloader, val_dataloader, model, optimizer, args ):
         end = time.time()
         logger.info(f'Time taken for epoch {epoch+1} is = {end-start}')
         log_aml(args, 'epoch_time', end-start)
-        val_loss , val_acc = evaluate(val_dataloader, model, args)
+        val_loss , val_acc, all_logits, all_labels = evaluate(val_dataloader, model, args)
         logger.info(f'Epoch = {epoch+1}, Val loss = {val_loss}, val_acc = {val_acc}')
         log_aml(args, 'val_loss', val_loss)
         log_aml(args, 'val_acc', val_acc)
+
+    #save evaluation results after training finishes
+    if args.local_rank == -1 or (args.is_distributed and args.global_rank == 0):
+        np.savetxt(os.path.join(args.output_dir, 'evaluate_logits.csv'), np.array(all_logits), delimiter=',')
+        np.savetxt(os.path.join(args.output_dir, 'evaluate_labels.csv'), np.array(all_labels), delimiter=',')
     return losses, val_loss , val_acc
 
 def log_aml(args, key,val):
@@ -180,17 +196,16 @@ def log_aml(args, key,val):
         if not args.is_distributed or args.global_rank == 0:
             args.run.log(key,val)
 
-def finish(args, model, optimizer):
+def save(args, model, optimizer):
     if args.local_rank == -1 or (args.is_distributed and args.global_rank == 0):
-        os.makedirs(args.output_dir, exist_ok=True)
-        torch.save(model.state_dict(),'model_checkpoint.pt')
+        torch.save(model.state_dict(),os.path.join(args.output_dir,'model_checkpoint.pt'))
         if args.fp16:
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'amp': amp.state_dict()
             }
-            torch.save(checkpoint, 'amp_checkpoint.pt')
+            torch.save(checkpoint, os.path.join(args.output_dir,'amp_checkpoint.pt'))
 
 
 def main(args):
@@ -210,7 +225,7 @@ def main(args):
     val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
-    finish(args, model, optimizer)
+    save(args, model, optimizer)
 
 
 def distributed_main(args):
@@ -242,7 +257,7 @@ def distributed_main(args):
     val_dataloader = DataLoader(val_dataset,batch_size= args.val_batch_size, sampler = val_sampler)
 
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
-    finish(args, model, optimizer)
+    save(args, model, optimizer)
 
 def distributed_main_horovod(args):
     import horovod.torch as hvd
@@ -268,7 +283,7 @@ def distributed_main_horovod(args):
     optimizer = hvd.DistributedOptimizer(optimizer, named_parameters = model.named_parameters(), backward_passes_per_step = args.gradient_accumulation)# <--
     
     metrics = train(train_dataloader, val_dataloader, model, optimizer, args)
-    finish(args, model, optimizer)
+    save(args, model, optimizer)
 
 def recalculate_ga(args):
     args.batch_size =  4 if args.fp16 else 2 #Bert Large
