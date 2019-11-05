@@ -129,14 +129,8 @@ K80 GPUS
 |DDP NCCL FP16| 0.5, 0.29 | 370 s |0.449, 0.8458 |
 |Horovod NCCL| 0.589, 0.342 | 208 s |0.413, 0.837 |
 
-V100 GPUS
 
-|Backend|Training loss (process1,process2) |Time taken for epoch 1 |Val loss, val_acc |
-|--- | --- | --- | --- |
-|GLOO| 0.441, 0.301 | 218 s| - |
-|NCCL| 0.549, 0.212 | 179 s | - |
-
-Conclusion: Multiprocess traning is faster than single process training. NCCL is faster then GLOO. In V100s, NCCL with two processes only consumed 61% of single node time while GLOO took 75% of single node time which is still faster but not very efficient.
+Conclusion: Multiprocess traning is faster than single process training. NCCL is faster then GLOO. 
 
 Hence rest of the experiments will be done with NCCL backend only.
 
